@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Map Tailwind v4's `dark:` variant to our `html.dark` class selector
+ * (set by useTheme) rather than the OS media query. This lets the
+ * in-app theme toggle actually control dark-mode utility classes like
+ * `dark:bg-amber-950/40`, not just the CSS variables below. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ---------------------------------------------------------------------------
  * Theme — brand colors and semantic tokens. Tailwind v4 reads @theme and
  * emits utility classes. Semantic tokens use CSS variables so that the

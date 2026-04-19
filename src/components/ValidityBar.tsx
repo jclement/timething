@@ -60,7 +60,7 @@ export function ValidityBar({ primaryTz, zones }: Props) {
   });
 
   return (
-    <div className="no-print flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 text-amber-900 rounded-md text-xs dark:bg-amber-500/[0.06] dark:border-amber-500/20 dark:text-amber-200/90">
+    <div className="no-print flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 text-amber-900 rounded-md text-xs dark:bg-amber-950/40 dark:border-amber-800/50 dark:text-amber-300">
       <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
       <span>
         <span className="font-semibold">Valid through {validThroughStr}.</span>{" "}
