@@ -15,7 +15,7 @@
 
 import type { Settings } from "./storage";
 
-const PREFIX = "v1.";
+const PREFIX = "v2.";
 
 export function encodeSettingsToHash(settings: Settings): string {
   return PREFIX + base64UrlEncode(JSON.stringify(settings));
@@ -29,7 +29,12 @@ export function decodeHashToSettings(hashFragment: string): Settings | null {
   try {
     const json = base64UrlDecode(h);
     const parsed = JSON.parse(json) as Partial<Settings>;
-    if (typeof parsed !== "object" || parsed === null || typeof parsed.homeTz !== "string") {
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      !Array.isArray(parsed.zones) ||
+      parsed.zones.length === 0
+    ) {
       return null;
     }
     return parsed as Settings;

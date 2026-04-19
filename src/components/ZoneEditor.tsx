@@ -1,15 +1,15 @@
 /**
  * ZoneEditor — modal dialog for editing a zone.
  *
- * Replaces the old inline "swap row for search" UI. All three attributes
- * of a zone are editable in one place:
- *   - Display label (the user's rename, e.g. "Jeff")
- *   - Time zone (via the typeahead — swaps the underlying IANA tz)
- *   - Working hours start/end (with a "use default" toggle on non-home
- *     zones; home zones edit the shared default)
+ * Three attributes, one place:
+ *   - Display name (user's label override)
+ *   - Time zone (via typeahead — swaps the underlying IANA tz)
+ *   - Working hours (always explicit; 8–17 is the baked-in default for
+ *     new zones)
  *
- * Changes are collected in local draft state and applied on Save; Cancel
- * discards. Escape + backdrop click also cancel.
+ * Changes are collected in local draft state and applied on Save. Cancel,
+ * backdrop click, and Escape all discard. Remove Zone sits in the footer
+ * for zones the caller says are safe to delete (canRemove).
  */
 
 import { Clock, X } from "lucide-react";
@@ -23,35 +23,24 @@ export interface EditorResult {
   tz: string;
   /** Empty string means "use the default city name." */
   label: string;
-  /** null means inherit default; undefined only used for home (always set). */
-  workingHours: WorkingHours | null;
+  workingHours: WorkingHours;
 }
 
 interface Props {
   open: boolean;
   zone: ZoneConfig;
-  isHome: boolean;
-  defaultWorkingHours: WorkingHours;
+  /** When false, the Remove Zone button is hidden (last zone must stay). */
+  canRemove: boolean;
   onSave: (next: EditorResult) => void;
   onCancel: () => void;
   onRemove?: () => void;
 }
 
-export function ZoneEditor({
-  open,
-  zone,
-  isHome,
-  defaultWorkingHours,
-  onSave,
-  onCancel,
-  onRemove,
-}: Props) {
-  const initialWh = zone.workingHours ?? defaultWorkingHours;
+export function ZoneEditor({ open, zone, canRemove, onSave, onCancel, onRemove }: Props) {
   const [tz, setTz] = useState(zone.tz);
   const [tzDisplay, setTzDisplay] = useState<string>(() => displayFor(zone.tz));
   const [label, setLabel] = useState(zone.label ?? "");
-  const [useDefault, setUseDefault] = useState(!zone.workingHours && !isHome);
-  const [wh, setWh] = useState<WorkingHours>(initialWh);
+  const [wh, setWh] = useState<WorkingHours>(zone.workingHours);
   const dialogId = useId();
 
   // Re-seed the draft when the modal opens for a different zone.
@@ -60,9 +49,8 @@ export function ZoneEditor({
     setTz(zone.tz);
     setTzDisplay(displayFor(zone.tz));
     setLabel(zone.label ?? "");
-    setUseDefault(!zone.workingHours && !isHome);
-    setWh(zone.workingHours ?? defaultWorkingHours);
-  }, [open, zone, defaultWorkingHours, isHome]);
+    setWh(zone.workingHours);
+  }, [open, zone]);
 
   // Dismiss on Escape.
   useEffect(() => {
@@ -77,11 +65,7 @@ export function ZoneEditor({
   if (!open) return null;
 
   const handleSave = () => {
-    onSave({
-      tz,
-      label: label.trim(),
-      workingHours: !isHome && useDefault ? null : wh,
-    });
+    onSave({ tz, label: label.trim(), workingHours: wh });
   };
 
   const handlePickTz = (hit: SearchHit) => {
@@ -111,7 +95,7 @@ export function ZoneEditor({
         <div className="bg-surface border border-app rounded-lg shadow-xl w-full max-w-md flex flex-col max-h-full">
           <header className="flex-shrink-0 flex items-center justify-between px-5 py-3 border-b border-app">
             <h2 id={`${dialogId}-title`} className="text-sm font-semibold text-heading">
-              {isHome ? "Edit home zone" : "Edit zone"}
+              Edit zone
             </h2>
             <button
               type="button"
@@ -163,53 +147,33 @@ export function ZoneEditor({
 
             {/* Working hours */}
             <div>
-              <div className="flex items-baseline justify-between mb-1">
-                <label className="block text-xs font-medium text-subtle">
-                  Working hours
-                </label>
-                {!isHome && (
-                  <label className="inline-flex items-center gap-1.5 text-[11px] text-muted cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={useDefault}
-                      onChange={(e) => setUseDefault(e.target.checked)}
-                      className="accent-[var(--color-primary)]"
-                    />
-                    Use default
-                  </label>
-                )}
-              </div>
+              <label className="block text-xs font-medium text-subtle mb-1">
+                Working hours
+              </label>
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-muted flex-shrink-0" />
                 <HourInput
                   label="Start"
-                  value={useDefault ? defaultWorkingHours.start : wh.start}
+                  value={wh.start}
                   min={0}
                   max={23}
-                  disabled={!isHome && useDefault}
                   onChange={(n) => setWh({ ...wh, start: n })}
                 />
                 <span className="text-muted text-sm">–</span>
                 <HourInput
                   label="End"
-                  value={useDefault ? defaultWorkingHours.end : wh.end}
+                  value={wh.end}
                   min={1}
                   max={24}
-                  disabled={!isHome && useDefault}
                   onChange={(n) => setWh({ ...wh, end: n })}
                 />
               </div>
-              {isHome && (
-                <p className="text-[11px] text-muted mt-1">
-                  This is also the default applied to new zones.
-                </p>
-              )}
             </div>
           </div>
 
           <footer className="flex-shrink-0 flex items-center justify-between gap-2 px-5 py-3 border-t border-app bg-surface">
             <div>
-              {onRemove && (
+              {canRemove && onRemove && (
                 <button
                   type="button"
                   onClick={onRemove}
@@ -252,14 +216,12 @@ function HourInput({
   value,
   min,
   max,
-  disabled,
   onChange,
 }: {
   label: string;
   value: number;
   min: number;
   max: number;
-  disabled?: boolean;
   onChange: (n: number) => void;
 }) {
   return (
@@ -270,13 +232,12 @@ function HourInput({
         min={min}
         max={max}
         value={value}
-        disabled={disabled}
         onChange={(e) => {
           const n = Number(e.target.value);
           if (Number.isNaN(n)) return;
           onChange(Math.max(min, Math.min(max, n)));
         }}
-        className="h-9 px-2 border border-app rounded bg-surface text-sm text-heading font-mono outline-none focus:ring-1 focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] disabled:opacity-50 disabled:bg-surface-alt"
+        className="h-9 px-2 border border-app rounded bg-surface text-sm text-heading font-mono outline-none focus:ring-1 focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)]"
       />
     </label>
   );

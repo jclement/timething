@@ -345,7 +345,11 @@ export function isWithinWorkingHours(
 
 /** "8:30 AM" / "20:00" — format an hour + minute for display. */
 export function formatHour(hour: number, minute: number, use24h: boolean): string {
-  if (use24h) return `${pad(hour)}:${pad(minute)}`;
+  if (use24h) {
+    // Compact 24h form: "08h", "19h". Only pull in minutes for zones
+    // with :30 or :45 offsets, where the cell doesn't fall on the hour.
+    return minute === 0 ? `${pad(hour)}h` : `${pad(hour)}:${pad(minute)}`;
+  }
   const h12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
   const ampm = hour < 12 ? "AM" : "PM";
   return minute === 0 ? `${h12} ${ampm}` : `${h12}:${pad(minute)} ${ampm}`;

@@ -16,11 +16,13 @@ import { useTheme } from "../hooks/useTheme";
 interface Props {
   /** Right-side controls specific to the page (toolbar). */
   children?: ReactNode;
+  /** Optional page title — sits to the right of the brand. */
+  title?: ReactNode;
   /** When true, render a "back to app" link instead of controls. Used on /privacy. */
   variant?: "app" | "subpage";
 }
 
-export function TopBar({ children, variant = "app" }: Props) {
+export function TopBar({ children, title, variant = "app" }: Props) {
   const { theme, cycle } = useTheme();
   const ThemeIcon = theme === "system" ? Monitor : theme === "light" ? Sun : Moon;
 
@@ -44,6 +46,15 @@ export function TopBar({ children, variant = "app" }: Props) {
             <LinkIcon className="inline w-3 h-3 mr-0.5" />
             Back to app
           </Link>
+        )}
+
+        {title && (
+          <>
+            <span aria-hidden="true" className="text-muted/60 select-none">
+              /
+            </span>
+            {title}
+          </>
         )}
 
         <div className="flex-1" />

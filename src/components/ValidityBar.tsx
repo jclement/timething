@@ -23,19 +23,19 @@ export interface LabeledZone {
 }
 
 interface Props {
-  homeTz: string;
-  /** Home + additional zones, in the order the grid renders them.
-   * When multiple entries share a tz the first match wins. */
+  /** IANA zone used to pick the calendar date for the "valid through" label. */
+  primaryTz: string;
+  /** All zones in the order the grid renders them. */
   zones: LabeledZone[];
 }
 
-export function ValidityBar({ homeTz, zones }: Props) {
+export function ValidityBar({ primaryTz, zones }: Props) {
   const earliest = useMemo(
     () => earliestTransitionAcross(zones.map((z) => z.tz)),
     [zones],
   );
-  // Nothing to warn about if you're only looking at your own zone —
-  // the grid is "valid" as long as you care to use it.
+  // Nothing to warn about if you're only looking at one zone — the
+  // grid is "valid" as long as you care to use it.
   if (zones.length < 2) return null;
   if (!earliest) return null;
 
@@ -44,13 +44,13 @@ export function ValidityBar({ homeTz, zones }: Props) {
   const direction = transition.deltaMinutes > 0 ? "springs forward" : "falls back";
   const newAbbr = transition.abbreviationAfter;
 
-  // "Valid through" = the calendar date in the home zone one day before
-  // the transition hits. This is what the user cares about — the last
-  // day their printed copy is correct.
+  // "Valid through" = the calendar date in the primary zone one day
+  // before the transition hits. That's the last day the printed copy
+  // is correct.
   const oneDay = 24 * 60 * 60 * 1000;
   const lastValidInstant = new Date(transition.after.getTime() - oneDay);
-  const homeOffset = zoneOffsetMinutes(lastValidInstant, homeTz);
-  const localLastValid = new Date(lastValidInstant.getTime() + homeOffset * 60_000);
+  const primaryOffset = zoneOffsetMinutes(lastValidInstant, primaryTz);
+  const localLastValid = new Date(lastValidInstant.getTime() + primaryOffset * 60_000);
   const validThroughStr = localLastValid.toLocaleDateString(undefined, {
     weekday: "short",
     month: "short",

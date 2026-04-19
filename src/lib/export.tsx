@@ -46,12 +46,36 @@ async function tryServerPdf(args: ExportArgs): Promise<boolean> {
 async function clientPdf(args: ExportArgs): Promise<void> {
   // Lazy-loaded — @react-pdf/renderer is ~500kb gzipped. We don't want
   // to pay that cost until the user actually clicks Export.
-  const [{ pdf }, { TimethingPdf }] = await Promise.all([
-    import("@react-pdf/renderer"),
-    import("../pdf/TimethingPdf"),
-  ]);
+  let pdf: typeof import("@react-pdf/renderer").pdf;
+  let TimethingPdf: typeof import("../pdf/TimethingPdf").TimethingPdf;
+  try {
+    [{ pdf }, { TimethingPdf }] = await Promise.all([
+      import("@react-pdf/renderer"),
+      import("../pdf/TimethingPdf"),
+    ]);
+  } catch (err) {
+    if (isChunkLoadError(err)) {
+      // The chunk was almost certainly replaced by a newer deploy since
+      // this page loaded. Reload to pick up the fresh manifest.
+      window.location.reload();
+      return;
+    }
+    throw err;
+  }
   const blob = await pdf(<TimethingPdf {...args} />).toBlob();
   downloadBlob(blob, filename());
+}
+
+function isChunkLoadError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  // Chrome/Safari/Firefox all surface dynamic-import failures as TypeError
+  // with a message containing either "dynamically imported" or
+  // "Failed to fetch". Catching either covers the stale-deploy case.
+  return (
+    /dynamically imported/i.test(err.message) ||
+    /Failed to fetch/i.test(err.message) ||
+    /Importing a module script failed/i.test(err.message)
+  );
 }
 
 function downloadBlob(blob: Blob, name: string): void {

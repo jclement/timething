@@ -1,17 +1,18 @@
 /**
- * localStorage-backed settings store.
+ * Settings + localStorage persistence.
  *
- * We keep all settings under a single JSON blob at a versioned key so
- * future schema changes can migrate cleanly. The hook in
- * hooks/useSettings.ts wraps this with React state.
+ * Every zone is equal. The first zone in the list is the "primary" one
+ * whose hour axis drives the grid — reorder to change which zone is
+ * primary. Working hours are per-zone and always explicit; new zones
+ * start at 8–17 (DEFAULT_WORKING_HOURS) and the user tweaks from there.
  */
 
 import { browserTimezone } from "./timezones";
 
 export interface WorkingHours {
-  /** Start hour, 0-23. Cells >= start are highlighted until < end. */
+  /** Start hour, 0-23. */
   start: number;
-  /** End hour, 0-23 (exclusive). */
+  /** End hour, 1-24 (exclusive). */
   end: number;
 }
 
@@ -20,46 +21,58 @@ export interface ZoneConfig {
   id: string;
   /** IANA zone. */
   tz: string;
-  /** Optional label override — defaults to city lookup. */
+  /** Optional display label override — defaults to the first curated city. */
   label?: string;
-  /** Per-zone working hours override. */
-  workingHours?: WorkingHours;
+  /** Per-zone working hours. Always explicit. */
+  workingHours: WorkingHours;
 }
 
 export type RangePreset = "work" | "waking" | "full";
 
 export interface Settings {
   /** Schema version — bump when making breaking changes. */
-  version: 1;
-  /** The user's primary zone, pinned at the top. */
-  homeTz: string;
-  /** Optional display label for the home zone — user can rename to "Jeff". */
-  homeLabel?: string;
-  /** Additional zones, in display order. */
+  version: 2;
+  /** All zones, in display order. The first one drives the hour axis. */
   zones: ZoneConfig[];
-  /** Default working hours, applied to any zone without an override. */
-  defaultWorkingHours: WorkingHours;
   /** Use 24h time format (false = 12h AM/PM). */
   use24h: boolean;
   /** theme preference — system, light, or dark. */
   theme: "system" | "light" | "dark";
   /** Which hour range preset is active. */
   rangeKey: RangePreset;
+  /** Optional page title override. Falls back to a comma-joined zone list. */
+  title?: string;
 }
 
-const STORAGE_KEY = "timething:settings:v1";
+const STORAGE_KEY = "timething:settings:v2";
 const THEME_KEY = "timething:theme";
 
+/** Hard-coded default working hours for new zones (8am–5pm). */
+export const DEFAULT_WORKING_HOURS: WorkingHours = { start: 8, end: 17 };
+
 export function defaultSettings(): Settings {
-  const homeTz = browserTimezone();
   return {
-    version: 1,
-    homeTz,
-    zones: [],
-    defaultWorkingHours: { start: 8, end: 17 },
+    version: 2,
+    zones: [makeZone(browserTimezone())],
     use24h: false,
     theme: "system",
     rangeKey: "waking",
+  };
+}
+
+/**
+ * Create a new zone config with sane defaults. `label` is optional — if
+ * omitted, rendering falls back to the first curated city for the tz.
+ */
+export function makeZone(tz: string, label?: string): ZoneConfig {
+  return {
+    id:
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    tz,
+    label,
+    workingHours: { ...DEFAULT_WORKING_HOURS },
   };
 }
 
@@ -68,7 +81,10 @@ export function loadSettings(): Settings {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultSettings();
     const parsed = JSON.parse(raw) as Partial<Settings>;
-    return { ...defaultSettings(), ...parsed, version: 1 };
+    if (!parsed || parsed.version !== 2 || !Array.isArray(parsed.zones) || parsed.zones.length === 0) {
+      return defaultSettings();
+    }
+    return { ...defaultSettings(), ...(parsed as Settings), version: 2 };
   } catch {
     return defaultSettings();
   }

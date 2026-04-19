@@ -260,88 +260,67 @@ const styles = StyleSheet.create({
 });
 
 export function TimethingPdf({ settings, referenceDate, range }: Props) {
-  const allZones: ZoneConfig[] = [
-    { id: "__home__", tz: settings.homeTz, label: settings.homeLabel },
-    ...settings.zones,
-  ];
+  const zones = settings.zones;
+  const primaryTz = zones[0]?.tz ?? "UTC";
+
   const hours: number[] = [];
   for (let h = range[0]; h < range[1]; h++) hours.push(h);
 
-  const homeCity = firstCityForTz(settings.homeTz);
-  const homeName = settings.homeLabel ?? homeCity?.name ?? humanizeIana(settings.homeTz);
+  const primaryCity = firstCityForTz(primaryTz);
+  const primaryName = zones[0]?.label ?? primaryCity?.name ?? humanizeIana(primaryTz);
 
-  // Home hours where every zone is in its working window — rendered as
-  // a green band across the grid, matching the on-screen affordance.
+  // Primary-zone hours where every zone is in its working window —
+  // used to tint overlap cells a touch darker.
   const overlapHours = computeOverlapHours(
-    settings.homeTz,
-    allZones.map((z) => ({
-      tz: z.tz,
-      workingHours: z.workingHours ?? settings.defaultWorkingHours,
-    })),
+    primaryTz,
+    zones.map((z) => ({ tz: z.tz, workingHours: z.workingHours })),
     referenceDate,
     range,
   );
 
+  // Derived title — user's override, else comma-joined zone names.
+  const titleText =
+    settings.title?.trim() || zones.map((z) => resolveZoneName(z)).join(", ");
+
   return (
     <Document
-      title={`timething — ${formatLongDate(referenceDate)}`}
+      title={`timething — ${titleText}`}
       author="timething"
       subject="Time zone comparison"
     >
       <Page size="LETTER" orientation="landscape" style={styles.page}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.brand}>timething</Text>
-            <Text style={styles.title}>Meeting times — {formatLongDate(referenceDate)}</Text>
+            <Text style={styles.brand}>timething · {formatLongDate(referenceDate)}</Text>
+            <Text style={styles.title}>{titleText}</Text>
           </View>
           <View style={styles.headerRight}>
-            <Text>Home: {homeName}</Text>
-            <Text>{settings.homeTz}</Text>
+            <Text>Primary: {primaryName}</Text>
+            <Text>{primaryTz}</Text>
           </View>
         </View>
 
         <View style={styles.gridContainer}>
-          {/* Hour axis */}
-          <View style={styles.hourAxis}>
-            <Text style={styles.axisLabel}>Home hour</Text>
-            <View style={styles.axisHours}>
-              {hours.map((h) => (
-                <Text
-                  key={h}
-                  style={[styles.axisHour, overlapHours.has(h) ? styles.axisOverlap : {}]}
-                >
-                  {labelForHomeHour(h, settings.use24h)}
-                </Text>
-              ))}
-            </View>
-          </View>
-
-          {/* Zone rows */}
-          {allZones.map((zone, i) => (
+          {/* Zone rows — the first row's times double as the hour axis,
+           * so no separate axis header is rendered. */}
+          {zones.map((zone, i) => (
             <ZoneRow
               key={zone.id}
               zone={zone}
-              isLast={i === allZones.length - 1}
-              isHome={zone.id === "__home__"}
-              homeTz={settings.homeTz}
-              homeLabel={settings.homeLabel}
+              isLast={i === zones.length - 1}
+              primaryTz={primaryTz}
               referenceDate={referenceDate}
               hours={hours}
               use24h={settings.use24h}
-              workingHours={zone.workingHours ?? settings.defaultWorkingHours}
               color={ZONE_COLORS[i % ZONE_COLORS.length]}
               overlapHours={overlapHours}
             />
           ))}
         </View>
 
-        <PdfValidityBar
-          homeTz={settings.homeTz}
-          homeLabel={settings.homeLabel}
-          zones={settings.zones}
-        />
+        <PdfValidityBar primaryTz={primaryTz} zones={zones} />
 
-        <DstSection homeTz={settings.homeTz} zones={settings.zones} />
+        <DstSection zones={zones} />
 
         <View style={styles.footer} fixed>
           <Text>timething · {new Date().toLocaleString()}</Text>
@@ -359,36 +338,30 @@ export function TimethingPdf({ settings, referenceDate, range }: Props) {
 function ZoneRow({
   zone,
   isLast,
-  isHome,
-  homeTz,
-  homeLabel,
+  primaryTz,
   referenceDate,
   hours,
   use24h,
-  workingHours,
   color,
   overlapHours,
 }: {
   zone: ZoneConfig;
   isLast: boolean;
-  isHome: boolean;
-  homeTz: string;
-  homeLabel?: string;
+  primaryTz: string;
   referenceDate: string;
   hours: number[];
   use24h: boolean;
-  workingHours: WorkingHours;
   color: string;
   overlapHours: Set<number>;
 }) {
   const city = firstCityForTz(zone.tz);
-  const effectiveLabel = isHome ? (homeLabel ?? zone.label) : zone.label;
-  const display = effectiveLabel ?? city?.name ?? humanizeIana(zone.tz);
+  const display = zone.label ?? city?.name ?? humanizeIana(zone.tz);
   const country = city?.country;
   const abbr = zoneAbbreviation(zone.tz);
+  const workingHours = zone.workingHours;
 
   const cells = hours.map((h) => {
-    const r = computeDayOffset(homeTz, zone.tz, referenceDate, h);
+    const r = computeDayOffset(primaryTz, zone.tz, referenceDate, h);
     return { ...r, homeHour: h };
   });
 
@@ -397,10 +370,7 @@ function ZoneRow({
       <View style={styles.labelCol}>
         <View style={styles.labelTitleRow}>
           <View style={[styles.swatch, { backgroundColor: color }]} />
-          <Text style={styles.labelText}>
-            {display}
-            {isHome ? " (home)" : ""}
-          </Text>
+          <Text style={styles.labelText}>{display}</Text>
         </View>
         <Text style={styles.labelMeta}>
           {country ? `${country} · ` : ""}
@@ -417,7 +387,14 @@ function ZoneRow({
           const isOverlap = overlapHours.has(cell.homeHour);
           const prev = cells[i - 1];
           const crossesDay = prev && prev.dayOffset !== cell.dayOffset;
-          const cellBg = isOverlap ? "#dcfce7" : inWorking ? hexToSoft(color) : "transparent";
+          // Zone color at two intensities — light for working hours,
+          // more intense for overlap with every other zone.
+          const cellBg =
+            isOverlap && inWorking
+              ? hexToTint(color, 0.5)
+              : inWorking
+                ? hexToTint(color, 0.75)
+                : "transparent";
           const chip = formatDayChip(cell.dayOffset);
 
           return (
@@ -429,7 +406,6 @@ function ZoneRow({
                 { backgroundColor: cellBg },
               ]}
             >
-              {isOverlap && <View style={styles.overlapStripe} />}
               <Text style={[styles.cellText, inWorking ? styles.cellTextWork : {}]}>
                 {formatHour(cell.cell.hour, cell.cell.minute, use24h)}
               </Text>
@@ -456,31 +432,26 @@ function ZoneRow({
 // ---------------------------------------------------------------------------
 
 function PdfValidityBar({
-  homeTz,
-  homeLabel,
+  primaryTz,
   zones,
 }: {
-  homeTz: string;
-  homeLabel?: string;
+  primaryTz: string;
   zones: ZoneConfig[];
 }) {
   // Single-zone views don't need a "valid through" warning — there's
   // nothing to line up, DST or not.
-  if (zones.length === 0) return null;
-  const earliest = earliestTransitionAcross([homeTz, ...zones.map((z) => z.tz)]);
+  if (zones.length < 2) return null;
+  const earliest = earliestTransitionAcross(zones.map((z) => z.tz));
   if (!earliest) return null;
   const { tz, transition } = earliest;
-  const zoneName =
-    tz === homeTz
-      ? resolveZoneName({ tz: homeTz }, homeLabel)
-      : resolveZoneName(zones.find((z) => z.tz === tz) ?? { tz });
+  const zoneName = resolveZoneName(zones.find((z) => z.tz === tz) ?? { tz });
   const direction = transition.deltaMinutes > 0 ? "springs forward" : "falls back";
   const abbr = transition.abbreviationAfter;
 
   const oneDay = 24 * 60 * 60 * 1000;
   const lastValidInstant = new Date(transition.after.getTime() - oneDay);
-  const homeOffset = zoneOffsetMinutes(lastValidInstant, homeTz);
-  const localLastValid = new Date(lastValidInstant.getTime() + homeOffset * 60_000);
+  const primaryOffset = zoneOffsetMinutes(lastValidInstant, primaryTz);
+  const localLastValid = new Date(lastValidInstant.getTime() + primaryOffset * 60_000);
   const validThroughStr = localLastValid.toLocaleDateString(undefined, {
     weekday: "short",
     month: "short",
@@ -504,10 +475,10 @@ function PdfValidityBar({
 // DST section
 // ---------------------------------------------------------------------------
 
-function DstSection({ homeTz, zones }: { homeTz: string; zones: ZoneConfig[] }) {
+function DstSection({ zones }: { zones: ZoneConfig[] }) {
   const tzs: string[] = [];
   const seen = new Set<string>();
-  for (const tz of [homeTz, ...zones.map((z) => z.tz)]) {
+  for (const tz of zones.map((z) => z.tz)) {
     if (seen.has(tz)) continue;
     seen.add(tz);
     tzs.push(tz);
@@ -555,14 +526,6 @@ function formatDayChip(dayOffset: number): string | null {
   return `${dayOffset}d`;
 }
 
-function labelForHomeHour(h: number, use24h: boolean): string {
-  if (use24h) return h.toString().padStart(2, "0");
-  if (h === 0) return "12a";
-  if (h === 12) return "12p";
-  if (h < 12) return `${h}a`;
-  return `${h - 12}p`;
-}
-
 function pad(n: number): string {
   return n < 10 ? `0${n}` : String(n);
 }
@@ -572,10 +535,16 @@ function pad(n: number): string {
  * opacity by blending with white since react-pdf doesn't reliably honor
  * rgba() backgrounds.
  */
-function hexToSoft(hex: string): string {
+/**
+ * Blend a hex color toward white. `whiteRatio` ranges 0-1:
+ *   1.0 = pure white, 0.0 = full color.
+ * Used to create subtle tints without relying on rgba() alpha, which
+ * react-pdf doesn't render reliably.
+ */
+function hexToTint(hex: string, whiteRatio: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
-  const blend = (c: number) => Math.round(c + (255 - c) * 0.7);
+  const blend = (c: number) => Math.round(c + (255 - c) * whiteRatio);
   return `rgb(${blend(r)}, ${blend(g)}, ${blend(b)})`;
 }

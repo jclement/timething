@@ -1,16 +1,30 @@
 /**
  * MobileGrid — narrow-viewport layout.
  *
- * On phones a horizontal-hours grid is unreadable. This component flips
- * the axes: zones become columns (up to the screen width, then horizontal
- * scroll), hours stack vertically. The top row is the column headers
- * (city + abbr), each subsequent row is one home-zone hour.
+ * Columns are zones (first = primary, drives the hour axis via its own
+ * body cells — no separate axis column). Rows stack vertically, one per
+ * primary-zone hour. Column headers open the ZoneEditor on tap.
  *
- * Clicking a row highlights that hour across every zone, matching the
- * desktop interaction.
+ * Non-primary columns are sortable via a small grip inside the header.
  */
 
-import { Home } from "lucide-react";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  horizontalListSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { GripVertical } from "lucide-react";
 import { useMemo } from "react";
 import type { WorkingHours, ZoneConfig } from "../lib/storage";
 import { computeDayOffset, formatHour } from "../lib/time";
@@ -28,34 +42,31 @@ const ZONE_COLORS = [
 ];
 
 interface Props {
-  homeTz: string;
-  homeLabel?: string;
+  primaryTz: string;
   referenceDate: string;
-  zones: ZoneConfig[]; // includes home at index 0
-  defaultWorkingHours: WorkingHours;
+  /** All zones; the first is the primary and drives the hour labels. */
+  zones: ZoneConfig[];
   use24h: boolean;
   range: [number, number];
   highlightedHour: number | null;
   onHighlightHour: (h: number | null) => void;
   onEdit: (id: string) => void;
-  /** Retained for API compat; remove/rename/workingHours all live in ZoneEditor now. */
-  onRemove?: (id: string) => void;
-  onRename?: (id: string, label: string) => void;
-  onWorkingHoursChange?: (id: string, wh: WorkingHours | undefined) => void;
+  /** Called when the user drops a column. Indices are 0-based into the
+   * non-primary subset of zones (i.e., zones.slice(1)). */
+  onReorder?: (fromIndex: number, toIndex: number) => void;
   overlapHours: Set<number>;
 }
 
 export function MobileGrid({
-  homeTz,
-  homeLabel,
+  primaryTz,
   referenceDate,
   zones,
-  defaultWorkingHours,
   use24h,
   range,
   highlightedHour,
   onHighlightHour,
   onEdit,
+  onReorder,
   overlapHours,
 }: Props) {
   const hours = useMemo(() => {
@@ -64,76 +75,75 @@ export function MobileGrid({
     return out;
   }, [range]);
 
-  // Per-zone cell data computed in one pass — we index by [zoneIdx][hourIdx].
-  const grid = useMemo(() => {
-    return zones.map((zone) =>
-      hours.map((h) => computeDayOffset(homeTz, zone.tz, referenceDate, h)),
-    );
-  }, [zones, hours, homeTz, referenceDate]);
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      // Require a small drag before activating so taps still open the editor.
+      activationConstraint: { distance: 6 },
+    }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
-  const homeHourLabel = (h: number) => {
-    if (use24h) return `${h.toString().padStart(2, "0")}:00`;
-    if (h === 0) return "12 AM";
-    if (h === 12) return "12 PM";
-    if (h < 12) return `${h} AM`;
-    return `${h - 12} PM`;
+  const handleDragEnd = (event: DragEndEvent) => {
+    if (!onReorder) return;
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const others = zones.slice(1);
+    const from = others.findIndex((z) => z.id === active.id);
+    const to = others.findIndex((z) => z.id === over.id);
+    if (from < 0 || to < 0) return;
+    onReorder(from, to);
   };
+
+  const primaryZone = zones[0];
+  const otherZones = zones.slice(1);
+  const otherZoneIds = otherZones.map((z) => z.id);
+
+  const grid = useMemo(
+    () =>
+      zones.map((zone) =>
+        hours.map((h) => computeDayOffset(primaryTz, zone.tz, referenceDate, h)),
+      ),
+    [zones, hours, primaryTz, referenceDate],
+  );
 
   return (
     <div className="bg-surface border border-app rounded-md shadow-sm overflow-x-auto">
-      {/* Header row — city names + controls as columns */}
       <div className="flex border-b border-app-strong bg-surface-alt sticky top-0 z-10">
-        <div className="w-16 flex-shrink-0 px-2 py-2 border-r border-app text-[10px] uppercase tracking-wider text-muted font-semibold">
-          Home
-        </div>
-        {zones.map((zone, i) => (
-          <ColumnHeader
-            key={zone.id}
-            zone={zone}
-            isHome={i === 0}
-            homeLabel={homeLabel}
-            color={ZONE_COLORS[i % ZONE_COLORS.length]}
-            onEdit={() => onEdit(zone.id)}
-          />
-        ))}
+        <ColumnHeader
+          key={primaryZone.id}
+          zone={primaryZone}
+          color={ZONE_COLORS[0]}
+          onEdit={() => onEdit(primaryZone.id)}
+        />
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={otherZoneIds} strategy={horizontalListSortingStrategy}>
+            {otherZones.map((zone, i) => (
+              <SortableColumnHeader
+                key={zone.id}
+                zone={zone}
+                color={ZONE_COLORS[(i + 1) % ZONE_COLORS.length]}
+                onEdit={() => onEdit(zone.id)}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
       </div>
 
-      {/* Body — one row per home hour */}
+      {/* Body — one row per primary-zone hour */}
       {hours.map((h, hi) => {
         const highlighted = highlightedHour === h;
         const isOverlap = overlapHours.has(h);
         return (
-          <div
-            key={h}
-            className={`relative flex border-b border-app last:border-b-0 ${
-              highlighted ? "bg-selected" : isOverlap ? "bg-[var(--color-success)]/10" : ""
-            }`}
-          >
-            {isOverlap && (
-              <span
-                aria-hidden="true"
-                className="absolute inset-y-0 left-0 w-1 bg-[var(--color-success)]"
-              />
-            )}
-            <button
-              type="button"
-              onClick={() => onHighlightHour(highlighted ? null : h)}
-              className={`w-16 flex-shrink-0 px-2 py-1.5 text-[11px] font-mono tabular-nums border-r border-app text-left focus:outline-none focus:ring-1 focus:ring-inset focus:ring-[var(--color-primary)] ${
-                highlighted
-                  ? "bg-[var(--color-primary)] text-white"
-                  : isOverlap
-                    ? "text-[var(--color-success)] font-semibold hover:bg-hover"
-                    : "text-subtle hover:bg-hover"
-              }`}
-            >
-              {homeHourLabel(h)}
-            </button>
+          <div key={h} className="flex border-b border-app last:border-b-0">
             {zones.map((zone, zi) => {
               const cell = grid[zi][hi];
-              const workingHours = zone.workingHours ?? defaultWorkingHours;
               const prev = grid[zi][hi - 1];
               const crossesDay = prev && prev.dayOffset !== cell.dayOffset;
-              const inWorking = isWorkingHour(cell.cell.hour, workingHours);
+              const inWorking = isWorkingHour(cell.cell.hour, zone.workingHours);
               const color = ZONE_COLORS[zi % ZONE_COLORS.length];
               const dayChip = formatDayChip(cell.dayOffset);
 
@@ -142,15 +152,17 @@ export function MobileGrid({
                   type="button"
                   key={zone.id}
                   onClick={() => onHighlightHour(highlighted ? null : h)}
-                  className={`flex-1 min-w-[72px] px-1 py-1.5 border-r last:border-r-0 border-app ${
+                  className={`flex-1 min-w-[80px] px-1 py-1.5 border-r last:border-r-0 border-app ${
                     crossesDay ? "border-t border-t-[var(--color-border-strong)]" : ""
                   } focus:outline-none flex items-center justify-center gap-1`}
                   style={{
                     backgroundColor: highlighted
-                      ? hexWithAlpha(color, 0.3)
-                      : inWorking
-                        ? hexWithAlpha(color, 0.18)
-                        : "transparent",
+                      ? hexWithAlpha(color, 0.45)
+                      : isOverlap && inWorking
+                        ? hexWithAlpha(color, 0.3)
+                        : inWorking
+                          ? hexWithAlpha(color, 0.15)
+                          : "transparent",
                   }}
                 >
                   <span
@@ -183,52 +195,79 @@ export function MobileGrid({
 
 // ---------------------------------------------------------------------------
 // Column header — whole cell is the tap target that opens the ZoneEditor.
-// Remove, rename, and working-hours changes all happen in the modal, so
-// the header just needs to show the name + context and be tappable.
 // ---------------------------------------------------------------------------
 
-function ColumnHeader({
-  zone,
-  isHome,
-  homeLabel,
-  color,
-  onEdit,
-}: {
+interface ColumnHeaderProps {
   zone: ZoneConfig;
-  isHome: boolean;
-  homeLabel?: string;
   color: string;
   onEdit: () => void;
-}) {
+  /** Optional grip button rendered before the swatch (set by the sortable wrapper). */
+  dragHandle?: React.ReactNode;
+}
+
+function ColumnHeader({ zone, color, onEdit, dragHandle }: ColumnHeaderProps) {
   const city = firstCityForTz(zone.tz);
-  const effectiveLabel = isHome ? (homeLabel ?? zone.label) : zone.label;
-  const display = effectiveLabel ?? city?.name ?? humanizeIana(zone.tz);
+  const display = zone.label ?? city?.name ?? humanizeIana(zone.tz);
   const abbr = zoneAbbreviation(zone.tz);
 
   return (
-    <button
-      type="button"
-      onClick={onEdit}
+    <div
+      role="button"
+      tabIndex={0}
       aria-label={`Edit ${display}`}
-      className="flex-1 min-w-[80px] px-2 py-2 border-r last:border-r-0 border-app text-left hover:bg-hover focus:outline-none focus:ring-1 focus:ring-inset focus:ring-[var(--color-primary)]"
+      onClick={onEdit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onEdit();
+        }
+      }}
+      className="flex-1 min-w-[80px] px-1.5 py-2 border-r last:border-r-0 border-app hover:bg-hover focus:outline-none focus:ring-1 focus:ring-inset focus:ring-[var(--color-primary)] cursor-pointer"
     >
-      <div className="flex items-start gap-1.5">
+      <div className="flex items-start gap-1">
+        {dragHandle}
         <span
           aria-hidden="true"
           className="inline-block w-2 h-2 rounded-sm mt-1 flex-shrink-0"
           style={{ background: color }}
         />
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1 min-w-0">
-            <span className="text-xs font-semibold text-heading truncate">{display}</span>
-            {isHome && (
-              <Home className="w-3 h-3 text-[var(--color-primary)] flex-shrink-0" />
-            )}
-          </div>
+          <div className="text-xs font-semibold text-heading truncate">{display}</div>
           <div className="text-[9px] text-muted font-mono truncate">{abbr}</div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function SortableColumnHeader(props: Omit<ColumnHeaderProps, "dragHandle">) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: props.zone.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 20 : undefined,
+  };
+
+  const handle = (
+    <button
+      type="button"
+      aria-label="Reorder column"
+      className="flex-shrink-0 h-4 w-4 flex items-center justify-center text-muted/70 hover:text-body rounded cursor-grab active:cursor-grabbing touch-none"
+      {...attributes}
+      {...listeners}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <GripVertical className="w-3 h-3" />
     </button>
+  );
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex-1 min-w-[80px] flex">
+      <ColumnHeader {...props} dragHandle={handle} />
+    </div>
   );
 }
 

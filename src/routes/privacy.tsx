@@ -99,7 +99,16 @@ function PrivacyPage() {
           <Section title="Questions">
             <p>
               If something here is unclear or you think I missed a privacy edge case,
-              email jeffrey.clement@gmail.com. I'll actually read it.
+              contact{" "}
+              <a
+                href="https://owg.me"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--color-primary)] hover:underline"
+              >
+                the OneWheelGeek
+              </a>
+              . I'll actually read it.
             </p>
           </Section>
 

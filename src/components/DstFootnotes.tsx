@@ -12,15 +12,14 @@ import { firstCityForTz, humanizeIana, zoneAbbreviation } from "../lib/timezones
 import type { ZoneConfig } from "../lib/storage";
 
 interface Props {
-  homeTz: string;
   zones: ZoneConfig[];
 }
 
-export function DstFootnotes({ homeTz, zones }: Props) {
+export function DstFootnotes({ zones }: Props) {
   const entries = useMemo(() => {
-    const tzs = [homeTz, ...zones.map((z) => z.tz)];
     const seen = new Set<string>();
-    return tzs
+    return zones
+      .map((z) => z.tz)
       .filter((tz) => (seen.has(tz) ? false : (seen.add(tz), true)))
       .map((tz) => {
         const transition = nextDstTransition(tz);
@@ -37,7 +36,7 @@ export function DstFootnotes({ homeTz, zones }: Props) {
           transition,
         };
       });
-  }, [homeTz, zones]);
+  }, [zones]);
 
   return (
     <section className="print-only mt-6 text-xs text-[#111827]">
