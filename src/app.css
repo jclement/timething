@@ -23,11 +23,13 @@
   --color-heading: #111827;
   --color-body: #374151;
   --color-subtle: #4b5563;
-  --color-muted: #9ca3af;
+  --color-muted: #6b7280;
   --color-border: #e5e7eb;
   --color-border-strong: #d1d5db;
   --color-hover: #f3f4f6;
   --color-selected: #eff6ff;
+  /* Focus-ring color — matches primary in light mode; brighter in dark. */
+  --color-focus: #2563eb;
 
   /* Row palette — used to color-code zone rows. Mirrored in Tailwind classes
    * so print view can show them even when running through the Worker-side
@@ -49,11 +51,14 @@ html.dark {
   --color-heading: #f9fafb;
   --color-body: #e5e7eb;
   --color-subtle: #d1d5db;
-  --color-muted: #6b7280;
+  /* Bumped from #6b7280 for WCAG AA on the dark surface. */
+  --color-muted: #9ca3af;
   --color-border: #1f2937;
   --color-border-strong: #374151;
   --color-hover: #1f2937;
   --color-selected: #1e3a8a;
+  /* Brighter focus ring for adequate contrast on dark backgrounds. */
+  --color-focus: #60a5fa;
 }
 
 html,
@@ -62,6 +67,19 @@ body {
   color: var(--color-body);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Visually hidden — for screen-reader-only headings and labels. */
+@utility sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 body {
@@ -99,6 +117,52 @@ body {
 }
 @utility border-app-strong {
   border-color: var(--color-border-strong);
+}
+
+/* ---------------------------------------------------------------------------
+ * Reduced motion — disable animations / transitions for users who have
+ * asked the OS to prefer less motion.
+ * ------------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Form input sizing — prevent iOS Safari from auto-zooming into inputs
+ * whose computed font-size is < 16px. Scoped to coarse-pointer devices so
+ * desktop keeps its compact typography.
+ * ------------------------------------------------------------------------ */
+
+@media (pointer: coarse) {
+  input[type="text"],
+  input[type="date"],
+  input[type="number"],
+  input[type="email"],
+  input[type="search"],
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+/* Hide the ugly native spinner on number inputs — we use text+pattern
+ * for hour inputs anyway, but this also covers any stragglers. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
 }
 
 /* ---------------------------------------------------------------------------

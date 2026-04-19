@@ -13,7 +13,7 @@
  */
 
 import { Clock, X } from "lucide-react";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { WorkingHours, ZoneConfig } from "../lib/storage";
 import { firstCityForTz, humanizeIana, type SearchHit } from "../lib/timezones";
@@ -42,6 +42,8 @@ export function ZoneEditor({ open, zone, canRemove, onSave, onCancel, onRemove }
   const [label, setLabel] = useState(zone.label ?? "");
   const [wh, setWh] = useState<WorkingHours>(zone.workingHours);
   const dialogId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const firstFieldRef = useRef<HTMLInputElement>(null);
 
   // Re-seed the draft when the modal opens for a different zone.
   useEffect(() => {
@@ -61,6 +63,42 @@ export function ZoneEditor({ open, zone, canRemove, onSave, onCancel, onRemove }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onCancel]);
+
+  // Focus management: on open, remember the currently-focused element,
+  // move focus into the dialog, and restore focus to the trigger on close.
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.activeElement as HTMLElement | null;
+    // Defer a tick so the portal is actually in the DOM.
+    const timer = window.setTimeout(() => firstFieldRef.current?.focus(), 0);
+    return () => {
+      window.clearTimeout(timer);
+      prev?.focus?.();
+    };
+  }, [open]);
+
+  // Simple focus trap: when Tab is pressed, cycle within the dialog.
+  const onDialogKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Tab") return;
+    const root = dialogRef.current;
+    if (!root) return;
+    const focusables = Array.from(
+      root.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter((el) => el.offsetParent !== null || el === document.activeElement);
+    if (focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const active = document.activeElement as HTMLElement | null;
+    if (e.shiftKey && active === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
 
   if (!open) return null;
 
@@ -92,7 +130,11 @@ export function ZoneEditor({ open, zone, canRemove, onSave, onCancel, onRemove }
         aria-modal="true"
         aria-labelledby={`${dialogId}-title`}
       >
-        <div className="bg-surface border border-app rounded-lg shadow-xl w-full max-w-md flex flex-col max-h-full">
+        <div
+          ref={dialogRef}
+          onKeyDown={onDialogKeyDown}
+          className="bg-surface border border-app rounded-lg shadow-xl w-full max-w-md flex flex-col max-h-full"
+        >
           <header className="flex-shrink-0 flex items-center justify-between px-5 py-3 border-b border-app">
             <h2 id={`${dialogId}-title`} className="text-sm font-semibold text-heading">
               Edit zone
@@ -100,8 +142,8 @@ export function ZoneEditor({ open, zone, canRemove, onSave, onCancel, onRemove }
             <button
               type="button"
               onClick={onCancel}
-              aria-label="Close"
-              className="h-7 w-7 flex items-center justify-center text-muted hover:text-body hover:bg-hover rounded"
+              aria-label="Close dialog"
+              className="h-9 w-9 flex items-center justify-center text-muted hover:text-body hover:bg-hover rounded"
             >
               <X className="w-4 h-4" />
             </button>
@@ -118,11 +160,14 @@ export function ZoneEditor({ open, zone, canRemove, onSave, onCancel, onRemove }
               </label>
               <input
                 id={`${dialogId}-name`}
+                ref={firstFieldRef}
                 type="text"
                 value={label}
                 placeholder={tzDisplay}
+                autoComplete="off"
+                spellCheck={false}
                 onChange={(e) => setLabel(e.target.value)}
-                className="w-full h-9 px-2.5 border border-app rounded bg-surface text-sm text-heading outline-none focus:ring-1 focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)]"
+                className="w-full h-10 px-2.5 border border-app rounded bg-surface text-base text-heading outline-none focus:ring-2 focus:ring-[var(--color-focus)] focus:border-[var(--color-focus)]"
               />
               <p className="text-[11px] text-muted mt-1">
                 Leave blank to use the city name.
@@ -224,22 +269,42 @@ function HourInput({
   max: number;
   onChange: (n: number) => void;
 }) {
+  // Track the raw draft separately so we don't clamp on every keystroke
+  // (which makes a transient "23" flash when the user types "99").
+  // Commit + clamp on blur.
+  const [draft, setDraft] = useState(String(value));
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  const commit = () => {
+    const n = Number(draft);
+    if (Number.isNaN(n)) {
+      setDraft(String(value));
+      return;
+    }
+    const clamped = Math.max(min, Math.min(max, n));
+    onChange(clamped);
+    setDraft(String(clamped));
+  };
+
   return (
-    <label className="flex-1 flex flex-col gap-0.5">
-      <span className="text-[10px] uppercase tracking-wider text-muted">{label}</span>
-      <input
-        type="number"
-        min={min}
-        max={max}
-        value={value}
-        onChange={(e) => {
-          const n = Number(e.target.value);
-          if (Number.isNaN(n)) return;
-          onChange(Math.max(min, Math.min(max, n)));
-        }}
-        className="h-9 px-2 border border-app rounded bg-surface text-sm text-heading font-mono outline-none focus:ring-1 focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)]"
-      />
-    </label>
+    <input
+      type="text"
+      inputMode="numeric"
+      pattern="[0-9]*"
+      maxLength={2}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, ""))}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          (e.target as HTMLInputElement).blur();
+        }
+      }}
+      aria-label={label}
+      className="flex-1 min-w-0 h-10 px-2 border border-app rounded bg-surface text-base text-heading font-mono text-center outline-none focus:ring-2 focus:ring-[var(--color-focus)] focus:border-[var(--color-focus)]"
+    />
   );
 }
 

@@ -165,6 +165,47 @@ export function Dashboard() {
     update((s) => ({ ...s, zones: arrayMove(s.zones, oldIndex, newIndex) }));
   };
 
+  // Custom screen-reader announcements for drag-and-drop, so keyboard
+  // users know when the grab/move/drop succeeded.
+  const dndAnnouncements = useMemo(
+    () => ({
+      onDragStart({ active }: { active: { id: string | number } }) {
+        const name = resolveZoneName(
+          settings.zones.find((z) => z.id === active.id) ?? { tz: "" },
+        );
+        return `Picked up zone ${name}. Use arrow keys to move.`;
+      },
+      onDragOver({
+        active,
+        over,
+      }: {
+        active: { id: string | number };
+        over: { id: string | number } | null;
+      }) {
+        if (!over) return undefined;
+        const from = settings.zones.findIndex((z) => z.id === active.id);
+        const to = settings.zones.findIndex((z) => z.id === over.id);
+        if (from < 0 || to < 0) return undefined;
+        return `Moving to position ${to + 1} of ${settings.zones.length}.`;
+      },
+      onDragEnd({ active, over }: { active: { id: string | number }; over: { id: string | number } | null }) {
+        const name = resolveZoneName(
+          settings.zones.find((z) => z.id === active.id) ?? { tz: "" },
+        );
+        if (!over) return `Dropped ${name} in its original position.`;
+        const to = settings.zones.findIndex((z) => z.id === over.id);
+        return `Dropped ${name} at position ${to + 1}.`;
+      },
+      onDragCancel({ active }: { active: { id: string | number } }) {
+        const name = resolveZoneName(
+          settings.zones.find((z) => z.id === active.id) ?? { tz: "" },
+        );
+        return `Cancelled dragging ${name}.`;
+      },
+    }),
+    [settings.zones],
+  );
+
   // ---- Render --------------------------------------------------------------
 
   return (
@@ -186,6 +227,9 @@ export function Dashboard() {
         />
       </TopBar>
       <main className="flex-1 w-full max-w-[1600px] mx-auto px-3 sm:px-5 py-4 flex flex-col gap-3">
+        <h1 className="sr-only">
+          timething — {settings.title?.trim() || derivedTitle || "time-zone dashboard"}
+        </h1>
         <Toolbar
           referenceDate={referenceDate}
           onReferenceDate={setReferenceDate}
@@ -207,6 +251,7 @@ export function Dashboard() {
             sensors={sensors}
             collisionDetection={closestCenter}
             onDragEnd={handleDragEnd}
+            accessibility={{ announcements: dndAnnouncements }}
           >
             <SortableContext
               items={settings.zones.map((z) => z.id)}

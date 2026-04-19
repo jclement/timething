@@ -129,7 +129,11 @@ function ZoneLabel({
   }, [display, renaming]);
 
   useEffect(() => {
-    if (renaming) inputRef.current?.select();
+    if (!renaming) return;
+    // focus + select so keyboard users land in the input and overwriting
+    // is one keystroke.
+    inputRef.current?.focus();
+    inputRef.current?.select();
   }, [renaming]);
 
   const startRename = () => {
@@ -177,7 +181,7 @@ function ZoneLabel({
               onClick={startRename}
               onDoubleClick={startRename}
               className="min-w-0 flex-1 text-left text-sm font-semibold text-heading truncate hover:underline decoration-dotted"
-              title="Click to rename"
+              title={display}
             >
               {display}
             </button>

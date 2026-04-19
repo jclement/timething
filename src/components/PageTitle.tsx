@@ -29,7 +29,9 @@ export function PageTitle({ override, derived, onChange }: Props) {
     if (!editing) setDraft(override ?? "");
   }, [override, editing]);
   useEffect(() => {
-    if (editing) inputRef.current?.select();
+    if (!editing) return;
+    inputRef.current?.focus();
+    inputRef.current?.select();
   }, [editing]);
 
   const commit = () => {

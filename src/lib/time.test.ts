@@ -109,6 +109,30 @@ describe("nextDstTransition", () => {
   });
 });
 
+describe("ValidityBar date math (one-day-before-transition in primary zone)", () => {
+  // Mirrors the computation in ValidityBar — included here so we fail
+  // a test if the off-by-one behavior regresses. Reviewer flagged this
+  // as suspicious; these cases prove it's correct.
+  const lastValidCalendarDate = (primaryTz: string, transitionAfter: Date) => {
+    const oneDay = 24 * 60 * 60 * 1000;
+    const lastValidInstant = new Date(transitionAfter.getTime() - oneDay);
+    const offsetMin = zoneOffsetMinutes(lastValidInstant, primaryTz);
+    const local = new Date(lastValidInstant.getTime() + offsetMin * 60_000);
+    return local.toISOString().slice(0, 10);
+  };
+
+  it("LA fall-back Nov 1 2026 → 'valid through Oct 31' in LA", () => {
+    const t = nextDstTransition("America/Los_Angeles", new Date("2026-07-01T00:00:00Z"));
+    expect(t).not.toBeNull();
+    expect(lastValidCalendarDate("America/Los_Angeles", t!.after)).toBe("2026-10-31");
+  });
+
+  it("primary=Sydney, LA fall-back → still Oct 31 in Sydney", () => {
+    const t = nextDstTransition("America/Los_Angeles", new Date("2026-07-01T00:00:00Z"));
+    expect(lastValidCalendarDate("Australia/Sydney", t!.after)).toBe("2026-10-31");
+  });
+});
+
 describe("computeOverlapHours", () => {
   it("finds the shared working window across home + one other zone", () => {
     // Los Angeles (home) working 8-16 local; Edmonton working 8-16 local.

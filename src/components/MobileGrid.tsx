@@ -11,7 +11,8 @@
 import {
   DndContext,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   closestCenter,
   useSensor,
   useSensors,
@@ -76,10 +77,12 @@ export function MobileGrid({
   }, [range]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      // Require a small drag before activating so taps still open the editor.
-      activationConstraint: { distance: 6 },
-    }),
+    // Mouse drag activates on 4px movement.
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    // Touch drag uses press-and-hold so it doesn't fight the horizontal
+    // scroll. 250ms is the sweet spot: short enough to feel responsive,
+    // long enough that flick-scrolls don't accidentally pick up a zone.
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
@@ -87,16 +90,13 @@ export function MobileGrid({
     if (!onReorder) return;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const others = zones.slice(1);
-    const from = others.findIndex((z) => z.id === active.id);
-    const to = others.findIndex((z) => z.id === over.id);
+    const from = zones.findIndex((z) => z.id === active.id);
+    const to = zones.findIndex((z) => z.id === over.id);
     if (from < 0 || to < 0) return;
     onReorder(from, to);
   };
 
-  const primaryZone = zones[0];
-  const otherZones = zones.slice(1);
-  const otherZoneIds = otherZones.map((z) => z.id);
+  const zoneIds = zones.map((z) => z.id);
 
   const grid = useMemo(
     () =>
@@ -108,30 +108,24 @@ export function MobileGrid({
 
   return (
     <div className="bg-surface border border-app rounded-md shadow-sm overflow-x-auto">
-      <div className="flex border-b border-app-strong bg-surface-alt sticky top-0 z-10">
-        <ColumnHeader
-          key={primaryZone.id}
-          zone={primaryZone}
-          color={ZONE_COLORS[0]}
-          onEdit={() => onEdit(primaryZone.id)}
-        />
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext items={otherZoneIds} strategy={horizontalListSortingStrategy}>
-            {otherZones.map((zone, i) => (
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext items={zoneIds} strategy={horizontalListSortingStrategy}>
+          <div className="flex border-b border-app-strong bg-surface-alt sticky top-0 z-10">
+            {zones.map((zone, i) => (
               <SortableColumnHeader
                 key={zone.id}
                 zone={zone}
-                color={ZONE_COLORS[(i + 1) % ZONE_COLORS.length]}
+                color={ZONE_COLORS[i % ZONE_COLORS.length]}
                 onEdit={() => onEdit(zone.id)}
               />
             ))}
-          </SortableContext>
-        </DndContext>
-      </div>
+          </div>
+        </SortableContext>
+      </DndContext>
 
       {/* Body — one row per primary-zone hour */}
       {hours.map((h, hi) => {
@@ -174,7 +168,7 @@ export function MobileGrid({
                   </span>
                   {dayChip && (
                     <span
-                      className={`text-[9px] leading-none inline-block px-1 py-0.5 rounded-sm font-semibold ${
+                      className={`text-[10px] leading-none inline-block px-1 py-0.5 rounded-sm font-semibold ${
                         cell.dayOffset > 0
                           ? "bg-amber-200 text-amber-900 dark:bg-amber-500/30 dark:text-amber-100"
                           : "bg-indigo-200 text-indigo-900 dark:bg-indigo-500/30 dark:text-indigo-100"
@@ -232,8 +226,10 @@ function ColumnHeader({ zone, color, onEdit, dragHandle }: ColumnHeaderProps) {
           style={{ background: color }}
         />
         <div className="min-w-0 flex-1">
-          <div className="text-xs font-semibold text-heading truncate">{display}</div>
-          <div className="text-[9px] text-muted font-mono truncate">{abbr}</div>
+          <div className="text-xs font-semibold text-heading truncate" title={display}>
+            {display}
+          </div>
+          <div className="text-[10px] text-muted font-mono truncate">{abbr}</div>
         </div>
       </div>
     </div>
@@ -251,16 +247,19 @@ function SortableColumnHeader(props: Omit<ColumnHeaderProps, "dragHandle">) {
     zIndex: isDragging ? 20 : undefined,
   };
 
+  // Keep the button visually aligned with the swatch/title row:
+  // items-start + a tiny top padding pins the icon near the top of the
+  // 28px tap target instead of centering it.
   const handle = (
     <button
       type="button"
       aria-label="Reorder column"
-      className="flex-shrink-0 h-4 w-4 flex items-center justify-center text-muted/70 hover:text-body rounded cursor-grab active:cursor-grabbing touch-none"
+      className="flex-shrink-0 h-7 w-7 flex items-start justify-center pt-[3px] text-muted hover:text-body rounded cursor-grab active:cursor-grabbing touch-none"
       {...attributes}
       {...listeners}
       onClick={(e) => e.stopPropagation()}
     >
-      <GripVertical className="w-3 h-3" />
+      <GripVertical className="w-3.5 h-3.5" />
     </button>
   );
 
