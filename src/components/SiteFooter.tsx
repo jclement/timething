@@ -17,9 +17,14 @@ export function SiteFooter() {
           <span aria-hidden="true">·</span>
           <span className="italic">{tagline}</span>
         </div>
-        <Link to="/privacy" className="hover:text-body hover:underline">
-          Privacy
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link to="/about" className="hover:text-body hover:underline">
+            About
+          </Link>
+          <Link to="/privacy" className="hover:text-body hover:underline">
+            Privacy
+          </Link>
+        </div>
       </div>
     </footer>
   );
