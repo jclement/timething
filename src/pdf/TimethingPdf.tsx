@@ -29,6 +29,7 @@ import {
   resolveZoneName,
   zoneAbbreviation,
 } from "../lib/timezones";
+import { APP_VERSION } from "../lib/version";
 
 interface Props {
   settings: Settings;
@@ -323,7 +324,9 @@ export function TimethingPdf({ settings, referenceDate, range }: Props) {
         <DstSection zones={zones} />
 
         <View style={styles.footer} fixed>
-          <Text>timething · {new Date().toLocaleString()}</Text>
+          <Text>
+            timething {APP_VERSION} · {new Date().toLocaleString()}
+          </Text>
           <Text render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
         </View>
       </Page>

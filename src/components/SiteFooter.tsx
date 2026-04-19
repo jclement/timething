@@ -6,6 +6,7 @@
 import { useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { randomTagline } from "../lib/taglines";
+import { APP_VERSION } from "../lib/version";
 
 export function SiteFooter() {
   const tagline = useMemo(() => randomTagline(), []);
@@ -18,6 +19,12 @@ export function SiteFooter() {
           <span className="italic">{tagline}</span>
         </div>
         <div className="flex items-center gap-3">
+          <span
+            className="font-mono text-[11px] text-muted/80"
+            title="Deployed build (git describe)"
+          >
+            {APP_VERSION}
+          </span>
           <Link to="/about" className="hover:text-body hover:underline">
             About
           </Link>
