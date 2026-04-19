@@ -7,14 +7,19 @@
  *   - Working hours (always explicit; 8–17 is the baked-in default for
  *     new zones)
  *
- * Changes are collected in local draft state and applied on Save. Cancel,
- * backdrop click, and Escape all discard. Remove Zone sits in the footer
- * for zones the caller says are safe to delete (canRemove).
+ * Built on Headless UI's Dialog, which handles portal, focus trap,
+ * Escape key, backdrop click, scroll lock, ARIA, and focus restore on
+ * close. We just manage the draft state + render the fields.
  */
 
+import {
+  Dialog,
+  DialogBackdrop,
+  DialogPanel,
+  DialogTitle,
+} from "@headlessui/react";
 import { Clock, X } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useRef, useState } from "react";
 import type { WorkingHours, ZoneConfig } from "../lib/storage";
 import { firstCityForTz, humanizeIana, type SearchHit } from "../lib/timezones";
 import { ZoneSearch } from "./ZoneSearch";
@@ -41,8 +46,6 @@ export function ZoneEditor({ open, zone, canRemove, onSave, onCancel, onRemove }
   const [tzDisplay, setTzDisplay] = useState<string>(() => displayFor(zone.tz));
   const [label, setLabel] = useState(zone.label ?? "");
   const [wh, setWh] = useState<WorkingHours>(zone.workingHours);
-  const dialogId = useId();
-  const dialogRef = useRef<HTMLDivElement>(null);
   const firstFieldRef = useRef<HTMLInputElement>(null);
 
   // Re-seed the draft when the modal opens for a different zone.
@@ -53,54 +56,6 @@ export function ZoneEditor({ open, zone, canRemove, onSave, onCancel, onRemove }
     setLabel(zone.label ?? "");
     setWh(zone.workingHours);
   }, [open, zone]);
-
-  // Dismiss on Escape.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCancel();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onCancel]);
-
-  // Focus management: on open, remember the currently-focused element,
-  // move focus into the dialog, and restore focus to the trigger on close.
-  useEffect(() => {
-    if (!open) return;
-    const prev = document.activeElement as HTMLElement | null;
-    // Defer a tick so the portal is actually in the DOM.
-    const timer = window.setTimeout(() => firstFieldRef.current?.focus(), 0);
-    return () => {
-      window.clearTimeout(timer);
-      prev?.focus?.();
-    };
-  }, [open]);
-
-  // Simple focus trap: when Tab is pressed, cycle within the dialog.
-  const onDialogKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== "Tab") return;
-    const root = dialogRef.current;
-    if (!root) return;
-    const focusables = Array.from(
-      root.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      ),
-    ).filter((el) => el.offsetParent !== null || el === document.activeElement);
-    if (focusables.length === 0) return;
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-    const active = document.activeElement as HTMLElement | null;
-    if (e.shiftKey && active === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && active === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  };
-
-  if (!open) return null;
 
   const handleSave = () => {
     onSave({ tz, label: label.trim(), workingHours: wh });
@@ -113,32 +68,33 @@ export function ZoneEditor({ open, zone, canRemove, onSave, onCancel, onRemove }
     if (!label.trim()) setLabel(hit.name);
   };
 
-  return createPortal(
-    <>
-      <div
-        className="fixed inset-0 z-40 bg-black/40"
-        onClick={onCancel}
-        aria-hidden="true"
+  return (
+    <Dialog
+      open={open}
+      onClose={onCancel}
+      initialFocus={firstFieldRef}
+      className="no-print relative z-40"
+    >
+      <DialogBackdrop
+        transition
+        className="fixed inset-0 bg-black/40 duration-150 ease-out data-[closed]:opacity-0"
       />
-      {/* Outer wrapper uses dvh so the modal matches the *visible* viewport
-       * when a mobile keyboard is up. Without this, inset-0 measures full
-       * 100vh and the footer can hide behind the keyboard. */}
+
+      {/* `100dvh` wrapper keeps the panel within the visible viewport
+       * when the mobile keyboard is up — Headless UI portals the dialog
+       * but doesn't auto-resize for the on-screen keyboard. */}
       <div
-        className="fixed inset-x-0 top-0 z-40 flex items-start sm:items-center justify-center px-3 sm:px-6 pt-3 pb-3 sm:py-6"
+        className="fixed inset-x-0 top-0 flex items-start sm:items-center justify-center px-3 sm:px-6 pt-3 pb-3 sm:py-6 overflow-y-auto"
         style={{ height: "100dvh" }}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={`${dialogId}-title`}
       >
-        <div
-          ref={dialogRef}
-          onKeyDown={onDialogKeyDown}
-          className="bg-surface border border-app rounded-lg shadow-xl w-full max-w-md flex flex-col max-h-full"
+        <DialogPanel
+          transition
+          className="bg-surface border border-app rounded-lg shadow-xl w-full max-w-md flex flex-col max-h-full duration-150 ease-out data-[closed]:opacity-0 data-[closed]:scale-95"
         >
           <header className="flex-shrink-0 flex items-center justify-between px-5 py-3 border-b border-app">
-            <h2 id={`${dialogId}-title`} className="text-sm font-semibold text-heading">
+            <DialogTitle className="text-sm font-semibold text-heading">
               Edit zone
-            </h2>
+            </DialogTitle>
             <button
               type="button"
               onClick={onCancel}
@@ -153,13 +109,13 @@ export function ZoneEditor({ open, zone, canRemove, onSave, onCancel, onRemove }
             {/* Name */}
             <div>
               <label
-                htmlFor={`${dialogId}-name`}
+                htmlFor="zone-editor-name"
                 className="block text-xs font-medium text-subtle mb-1"
               >
                 Display name
               </label>
               <input
-                id={`${dialogId}-name`}
+                id="zone-editor-name"
                 ref={firstFieldRef}
                 type="text"
                 value={label}
@@ -245,10 +201,9 @@ export function ZoneEditor({ open, zone, canRemove, onSave, onCancel, onRemove }
               </button>
             </div>
           </footer>
-        </div>
+        </DialogPanel>
       </div>
-    </>,
-    document.body,
+    </Dialog>
   );
 }
 
