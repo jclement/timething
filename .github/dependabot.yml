@@ -1,0 +1,30 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      tanstack:
+        patterns:
+          - "@tanstack/*"
+      cloudflare:
+        patterns:
+          - "@cloudflare/*"
+          - "wrangler"
+      tailwind:
+        patterns:
+          - "tailwindcss"
+          - "@tailwindcss/*"
+      testing:
+        patterns:
+          - "vitest"
+          - "@testing-library/*"
+          - "@playwright/test"
+          - "jsdom"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly

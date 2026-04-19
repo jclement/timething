@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+bin/
+tmp/
+
+# Local secrets (NEVER commit)
+.dev.vars
+fnox.local.toml
+mise.local.toml
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Cloudflare
+.wrangler/
+
+# TanStack Router generated file (can be regenerated)
+# Leave committed for CI builds that skip the generator step
+
+# Test artifacts
+playwright-report/
+test-results/
+coverage/
+
+# Core dumps
+core

@@ -1,0 +1,17 @@
+name = "timething"
+main = "worker/index.ts"
+compatibility_date = "2026-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Bind the Worker to a custom subdomain. `custom_domain = true` tells
+# Cloudflare to manage the TLS cert + DNS routing automatically.
+routes = [
+  { pattern = "timething.onewheelgeek.net", custom_domain = true },
+]
+
+# The Worker serves the Vite-built SPA. Falls back to index.html for
+# client-side routes so TanStack Router can own URLs like /settings.
+[assets]
+directory = "./dist/client"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
