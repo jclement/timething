@@ -6,7 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 # Bind the Worker to a custom subdomain. `custom_domain = true` tells
 # Cloudflare to manage the TLS cert + DNS routing automatically.
 routes = [
-  { pattern = "timething.onewheelgeek.net", custom_domain = true },
+  { pattern = "timething.app", custom_domain = true },
 ]
 
 # The Worker serves the Vite-built SPA. Falls back to index.html for

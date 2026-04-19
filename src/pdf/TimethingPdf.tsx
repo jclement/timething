@@ -35,6 +35,9 @@ interface Props {
   settings: Settings;
   referenceDate: string;
   range: [number, number];
+  /** Host the PDF was generated from — stamped in the footer so a
+   * printed copy points the reader back to the live app. */
+  origin?: string;
 }
 
 // Row palette — mirrors the --zone-N CSS vars in app.css so the PDF and
@@ -260,7 +263,7 @@ const styles = StyleSheet.create({
   },
 });
 
-export function TimethingPdf({ settings, referenceDate, range }: Props) {
+export function TimethingPdf({ settings, referenceDate, range, origin }: Props) {
   const zones = settings.zones;
   const primaryTz = zones[0]?.tz ?? "UTC";
 
@@ -325,7 +328,8 @@ export function TimethingPdf({ settings, referenceDate, range }: Props) {
 
         <View style={styles.footer} fixed>
           <Text>
-            timething {APP_VERSION} · {new Date().toLocaleString()}
+            Generated at {origin ?? "timething.app"} · {APP_VERSION} ·{" "}
+            {new Date().toLocaleString()}
           </Text>
           <Text render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
         </View>

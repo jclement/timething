@@ -16,16 +16,22 @@ interface ExportArgs {
   settings: Settings;
   referenceDate: string;
   range: [number, number];
+  /** Hostname to stamp in the PDF footer. Defaults to `window.location.host`. */
+  origin?: string;
 }
 
 export async function exportPdf(args: ExportArgs): Promise<void> {
+  const withOrigin: ExportArgs = {
+    ...args,
+    origin: args.origin ?? window.location.host,
+  };
   try {
-    const ok = await tryServerPdf(args);
+    const ok = await tryServerPdf(withOrigin);
     if (ok) return;
   } catch {
     // Ignore network failures and fall back to the client PDF.
   }
-  await clientPdf(args);
+  await clientPdf(withOrigin);
 }
 
 async function tryServerPdf(args: ExportArgs): Promise<boolean> {
