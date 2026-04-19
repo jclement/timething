@@ -33,16 +33,34 @@ export interface CellInstant {
 /**
  * Resolve a home-zone local date + hour to the UTC instant it represents.
  *
- * Uses a binary-search-ish offset lookup because JavaScript's Date API
- * exposes no direct "construct this wall-clock time in this zone" path.
+ * Uses a two-step offset lookup to handle DST transitions correctly:
+ *
+ *   1. Guess: treat the requested wall clock as if it were UTC.
+ *   2. Offset A: the zone's UTC offset at that guess instant.
+ *   3. Candidate: subtract offset A to convert guess into "real" UTC.
+ *   4. Offset B: the zone's UTC offset at the candidate.
+ *   5. If A and B disagree (transition day), recompute with offset B.
+ *
+ * Without step 5, every home hour between the transition-hour-as-UTC
+ * and the transition-hour-as-local rendered an hour late on DST days.
+ *
+ * For the "missing hour" on a spring-forward day (e.g., LA 2am on
+ * 2026-03-08), there is no UTC instant whose local time is that hour;
+ * this function returns the pre-transition boundary, which will render
+ * as the preceding hour. Callers that care can detect this by checking
+ * whether the result's wall-clock hour actually equals the requested
+ * hour.
  */
 export function instantFromHomeHour(homeTz: string, referenceDateIso: string, hour: number): Date {
   const [y, m, d] = referenceDateIso.split("-").map(Number);
-  // Start with a UTC guess: the target wall clock treated as if it were UTC.
   const guess = Date.UTC(y, m - 1, d, hour, 0, 0);
-  const offsetMin = zoneOffsetMinutes(new Date(guess), homeTz);
-  // Subtract the offset so the wall clock lands on the requested hour in homeTz.
-  return new Date(guess - offsetMin * 60_000);
+  const offsetA = zoneOffsetMinutes(new Date(guess), homeTz);
+  const candidate = new Date(guess - offsetA * 60_000);
+  const offsetB = zoneOffsetMinutes(candidate, homeTz);
+  if (offsetA === offsetB) return candidate;
+  // Transition day — recompute using the offset that actually applies
+  // at the resulting instant, which lines up the rest of the day.
+  return new Date(guess - offsetB * 60_000);
 }
 
 /**
@@ -319,6 +337,9 @@ export function computeOverlapHours(
   range: [number, number],
 ): Set<number> {
   const result = new Set<number>();
+  // Vacuous-truth guard: "every zone is working" is trivially true with
+  // zero zones, which would tint every hour. Prefer empty in that case.
+  if (zones.length === 0) return result;
   for (let h = range[0]; h < range[1]; h++) {
     let allOverlap = true;
     for (const zone of zones) {

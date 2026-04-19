@@ -109,6 +109,193 @@ describe("nextDstTransition", () => {
   });
 });
 
+describe("instantFromHomeHour DST correctness", () => {
+  // On spring-forward days the algorithm previously used the wrong
+  // offset for every hour past the transition, shifting rendered times
+  // by an hour. These tests lock in the corrected behavior.
+  it("renders hours 3..23 correctly on US spring-forward (LA 2026-03-08)", () => {
+    // 3 AM PDT = 10:00 UTC. 4 AM PDT = 11:00 UTC. Etc.
+    const tz = "America/Los_Angeles";
+    const date = "2026-03-08";
+    for (let h = 3; h < 24; h++) {
+      const instant = instantFromHomeHour(tz, date, h);
+      const cell = cellInZone(instant, tz);
+      expect(
+        cell.hour,
+        `home hour ${h} should render as ${h} in the primary zone`,
+      ).toBe(h);
+    }
+  });
+
+  it("renders hours 2..23 correctly on US fall-back (LA 2026-11-01)", () => {
+    const tz = "America/Los_Angeles";
+    const date = "2026-11-01";
+    // Hour 1 is genuinely ambiguous (it happens twice). We accept either
+    // occurrence; hours 2+ should be unambiguous and correct.
+    for (let h = 2; h < 24; h++) {
+      const instant = instantFromHomeHour(tz, date, h);
+      const cell = cellInZone(instant, tz);
+      expect(cell.hour, `home hour ${h} should render as ${h}`).toBe(h);
+    }
+  });
+
+  it("renders hours correctly on Sydney spring-forward (2026-10-04)", () => {
+    const tz = "Australia/Sydney";
+    const date = "2026-10-04";
+    for (let h = 3; h < 24; h++) {
+      const instant = instantFromHomeHour(tz, date, h);
+      const cell = cellInZone(instant, tz);
+      expect(cell.hour).toBe(h);
+    }
+  });
+
+  it("renders hours correctly on Sydney fall-back (2026-04-05)", () => {
+    const tz = "Australia/Sydney";
+    const date = "2026-04-05";
+    for (let h = 4; h < 24; h++) {
+      const instant = instantFromHomeHour(tz, date, h);
+      const cell = cellInZone(instant, tz);
+      expect(cell.hour).toBe(h);
+    }
+  });
+
+  it("non-DST zones render every hour correctly", () => {
+    const date = "2026-06-15";
+    for (const tz of ["America/Phoenix", "Asia/Riyadh", "Asia/Kolkata", "UTC"]) {
+      for (let h = 0; h < 24; h++) {
+        const instant = instantFromHomeHour(tz, date, h);
+        const cell = cellInZone(instant, tz);
+        expect(cell.hour, `${tz} hour ${h}`).toBe(h);
+      }
+    }
+  });
+});
+
+describe("DST-day cell stability across zones", () => {
+  // On spring-forward in LA, the instant for home hour 3 should project
+  // to consistent wall clocks in other zones (no off-by-one drift).
+  it("h=3 on LA spring-forward = 10:00 UTC", () => {
+    const instant = instantFromHomeHour("America/Los_Angeles", "2026-03-08", 3);
+    expect(instant.toISOString()).toBe("2026-03-08T10:00:00.000Z");
+  });
+
+  it("projects LA spring-forward h=3 to Riyadh as 1 PM AST", () => {
+    const instant = instantFromHomeHour("America/Los_Angeles", "2026-03-08", 3);
+    expect(cellInZone(instant, "Asia/Riyadh").hour).toBe(13);
+  });
+});
+
+describe("half-hour and three-quarter offsets", () => {
+  it("projects LA 8 AM to Kolkata :30 offset", () => {
+    // LA in June = PDT = UTC-7. 8 AM PDT = 15:00 UTC.
+    // Kolkata = UTC+5:30. 15:00 UTC = 20:30 Kolkata.
+    const instant = instantFromHomeHour("America/Los_Angeles", "2026-06-15", 8);
+    const cell = cellInZone(instant, "Asia/Kolkata");
+    expect(cell.hour).toBe(20);
+    expect(cell.minute).toBe(30);
+  });
+
+  it("Kolkata as primary still produces whole-hour home slots", () => {
+    // Hour indexing is in the primary zone's local hours — those are
+    // always integers regardless of the UTC offset's fraction.
+    for (let h = 0; h < 24; h++) {
+      const instant = instantFromHomeHour("Asia/Kolkata", "2026-06-15", h);
+      const cell = cellInZone(instant, "Asia/Kolkata");
+      expect(cell.hour).toBe(h);
+      expect(cell.minute).toBe(0);
+    }
+  });
+
+  it("Nepal +5:45 offset renders in other zones with :15 minutes", () => {
+    // Nepal 9 AM = UTC+5:45 → 03:15 UTC → LA PDT = 20:15 previous day.
+    const instant = instantFromHomeHour("Asia/Kathmandu", "2026-06-15", 9);
+    const cell = cellInZone(instant, "America/Los_Angeles");
+    expect(cell.minute).toBe(15);
+  });
+});
+
+describe("dateline day-offset chips", () => {
+  it("Auckland +13 vs Honolulu -10: Auckland midnight is previous day in Honolulu", () => {
+    // Jan = NZDT = UTC+13. Auckland 00:00 on 2026-01-15 = 11:00 UTC
+    // 2026-01-14 → Honolulu (UTC-10) = 01:00 on 2026-01-14.
+    const { dayOffset, cell } = computeDayOffset(
+      "Pacific/Auckland",
+      "Pacific/Honolulu",
+      "2026-01-15",
+      0,
+    );
+    expect(dayOffset).toBe(-1);
+    expect(cell.hour).toBe(1);
+  });
+
+  it("Kiribati +14 vs Niue -11: 25-hour gap across dateline", () => {
+    // Kiritimati +14. Niue -11. That's a 25h offset; noon Kiribati on
+    // 2026-06-15 = 22:00 UTC 2026-06-14 → Niue 11:00 on 2026-06-14.
+    const { dayOffset } = computeDayOffset(
+      "Pacific/Kiritimati",
+      "Pacific/Niue",
+      "2026-06-15",
+      12,
+    );
+    expect(dayOffset).toBe(-1);
+  });
+});
+
+describe("computeOverlapHours edge cases", () => {
+  it("wrap-around working hours (night shift) participates correctly", () => {
+    // Primary = LA, with a 22-6 night-shift zone in LA itself. The
+    // home-hour should be inside that window for 0..5 and 22..23.
+    const zones = [
+      { tz: "America/Los_Angeles", workingHours: { start: 22, end: 6 } },
+    ];
+    const overlap = computeOverlapHours(
+      "America/Los_Angeles",
+      zones,
+      "2026-06-15",
+      [0, 24],
+    );
+    for (let h = 0; h < 24; h++) {
+      const expected = h >= 22 || h < 6;
+      expect(overlap.has(h), `hour ${h}`).toBe(expected);
+    }
+  });
+
+  it("single zone: every hour in its working window is an overlap", () => {
+    const zones = [
+      { tz: "America/Los_Angeles", workingHours: { start: 8, end: 17 } },
+    ];
+    const overlap = computeOverlapHours(
+      "America/Los_Angeles",
+      zones,
+      "2026-06-15",
+      [0, 24],
+    );
+    expect([...overlap].sort((a, b) => a - b)).toEqual([8, 9, 10, 11, 12, 13, 14, 15, 16]);
+  });
+
+  it("empty zones: no overlap is empty set", () => {
+    const overlap = computeOverlapHours("UTC", [], "2026-06-15", [0, 24]);
+    expect(overlap.size).toBe(0);
+  });
+
+  it("computes overlap correctly across LA spring-forward day", () => {
+    // The rendered times should still be correct under the fixed
+    // instantFromHomeHour. LA 8-17 and Edmonton 8-17 overlap is
+    // still the same as any normal day: LA hours 8..14.
+    const zones = [
+      { tz: "America/Los_Angeles", workingHours: { start: 8, end: 17 } },
+      { tz: "America/Edmonton", workingHours: { start: 8, end: 17 } },
+    ];
+    const overlap = computeOverlapHours(
+      "America/Los_Angeles",
+      zones,
+      "2026-03-08",
+      [0, 24],
+    );
+    expect([...overlap].sort((a, b) => a - b)).toEqual([8, 9, 10, 11, 12, 13, 14, 15]);
+  });
+});
+
 describe("ValidityBar date math (one-day-before-transition in primary zone)", () => {
   // Mirrors the computation in ValidityBar — included here so we fail
   // a test if the off-by-one behavior regresses. Reviewer flagged this
