@@ -11,6 +11,7 @@
 import { Clock, Link as LinkIcon, Monitor, Moon, Sun } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
+import { Brand } from "./Brand";
 import { useTheme } from "../hooks/useTheme";
 
 interface Props {
@@ -35,7 +36,7 @@ export function TopBar({ children, title, variant = "app" }: Props) {
           aria-label="timething home"
         >
           <Clock className="w-4 h-4 text-[var(--color-primary)]" />
-          <span className="font-semibold tracking-tight text-sm">timething</span>
+          <Brand className="font-semibold text-sm" />
         </Link>
 
         {variant === "subpage" && (

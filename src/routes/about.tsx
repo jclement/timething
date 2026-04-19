@@ -3,6 +3,7 @@
  * app exists. Linked from the site footer.
  */
 import { createFileRoute } from "@tanstack/react-router";
+import { Brand } from "../components/Brand";
 import { TopBar } from "../components/TopBar";
 
 export const Route = createFileRoute("/about")({
@@ -15,7 +16,7 @@ function AboutPage() {
       <TopBar variant="subpage" />
       <main className="flex-1 w-full max-w-3xl mx-auto px-3 sm:px-5 py-6">
         <h1 className="text-xl font-semibold text-heading mb-1">
-          About timething
+          About <Brand />
         </h1>
         <p className="text-xs text-muted mb-6 italic">
           or: A Brief and Increasingly Angry History of Time
@@ -119,24 +120,22 @@ function AboutPage() {
 
           <Section title="Why this exists">
             <p>
-              I had to schedule a recurring call with colleagues in Calgary,
-              Houston, Dhahran, and Bangalore. Five months in, the meeting
-              silently shifted by an hour for two of the participants because
-              North America and Saudi Arabia have different DST rules. Three
-              months later it shifted again, for different reasons, because
-              India doesn't observe DST at all and 5:45 minus 7:00 is not a
-              number anyone wants to compute in their head at 11pm on a Sunday.
+              I routinely schedule meetings with colleagues in Calgary, Houston,
+              Vancouver, and a handful of rather more exotic places. It hurts my
+              brain — especially when my today is their tomorrow, or when one
+              side of the call is about to spring forward and the other isn't.
             </p>
             <p>
-              timething is the wall-chart I wanted: every zone I care about,
-              lined up, with the overlap of everyone's working hours darkened
-              so I can pick a sane meeting time without a spreadsheet. It tells
-              me when the next DST change will quietly break everything.
-              It prints on a single landscape page. I can tape it to the wall.
+              <Brand /> is the wall-chart I wanted: every zone I care about,
+              lined up side by side, with the overlap of everyone's working
+              hours darkened so I can pick a sane meeting time without opening
+              a spreadsheet. It tells me when the next DST change will quietly
+              break everything. It prints on a single landscape page. I can
+              tape it to the wall.
             </p>
             <p>
-              That's it. It's a printable schedule for people who have lost
-              enough hours of their life to timezone math.
+              That's it. A printable schedule for people who have lost enough
+              hours of their life to timezone math.
             </p>
           </Section>
 
@@ -160,31 +159,6 @@ function AboutPage() {
                 railroad-standard, and the one your grandmother insisted on.
               </li>
             </ul>
-          </Section>
-
-          <Section title="Recommended reading">
-            <p>
-              If you want to go deeper — and you should not — the article{" "}
-              <a
-                href="https://en.wikipedia.org/wiki/Time_zone"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[var(--color-primary)] hover:underline"
-              >
-                Time zone
-              </a>{" "}
-              on Wikipedia is a good start. Then{" "}
-              <a
-                href="https://www.youtube.com/watch?v=-5wpm-gesOY"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[var(--color-primary)] hover:underline"
-              >
-                Tom Scott's "The Problem with Time &amp; Timezones"
-              </a>{" "}
-              will take another ten minutes of your life that you will never get
-              back, but in a fun way.
-            </p>
           </Section>
 
           <p className="text-xs text-muted pt-4 border-t border-app">

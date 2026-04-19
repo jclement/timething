@@ -5,6 +5,7 @@
 
 import { useMemo } from "react";
 import { Link } from "@tanstack/react-router";
+import { Brand } from "./Brand";
 import { randomTagline } from "../lib/taglines";
 import { APP_VERSION } from "../lib/version";
 
@@ -14,7 +15,7 @@ export function SiteFooter() {
     <footer className="no-print border-t border-app mt-4">
       <div className="max-w-[1600px] mx-auto px-3 sm:px-5 py-3 flex flex-col sm:flex-row items-center justify-between gap-1 text-xs text-muted">
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-subtle">timething</span>
+          <Brand className="font-semibold text-subtle" />
           <span aria-hidden="true">·</span>
           <span className="italic">{tagline}</span>
         </div>
