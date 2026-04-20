@@ -97,9 +97,10 @@ export function Dashboard() {
   // ---- Mutations -----------------------------------------------------------
 
   const addZone = (hit: { tz: string; name: string }) => {
-    // Allow duplicates of tz? For now, no — but a rename is cheap if
-    // the user really wants two entries for the same zone.
-    if (settings.zones.some((z) => z.tz === hit.tz)) return;
+    // Duplicates are intentional — useful for showing multiple
+    // teammates who happen to live in the same time zone (e.g.
+    // separate "Jeff (Calgary)" and "Sarah (Denver)" rows that both
+    // resolve to America/Edmonton's offset).
     update((s) => ({ ...s, zones: [...s.zones, makeZone(hit.tz, hit.name)] }));
   };
 
