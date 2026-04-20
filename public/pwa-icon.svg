@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" shape-rendering="geometricPrecision">
+  <!-- Full-bleed source for PWA icon generation. No rounded corners so
+       iOS and Android can apply their own masks without exposing a
+       white/transparent ring around the art. -->
+  <rect width="512" height="512" fill="#2563eb"/>
+
+  <!-- Clock face (scaled up from the 64px favicon proportions). Safe
+       area kept well within the maskable 80% inner zone. -->
+  <g transform="translate(256 256)">
+    <circle r="144" fill="none" stroke="#ffffff" stroke-width="24"/>
+
+    <!-- 12 / 3 / 6 / 9 hour ticks -->
+    <g stroke="#ffffff" stroke-width="20" stroke-linecap="round">
+      <line x1="0"    y1="-136" x2="0"    y2="-112"/>
+      <line x1="136"  y1="0"    x2="112"  y2="0"/>
+      <line x1="0"    y1="136"  x2="0"    y2="112"/>
+      <line x1="-136" y1="0"    x2="-112" y2="0"/>
+    </g>
+
+    <!-- Secondary "zone" hand in lighter blue — the point of this app. -->
+    <line x1="0" y1="0" x2="96" y2="72" stroke="#93c5fd" stroke-width="24" stroke-linecap="round"/>
+
+    <!-- Primary hour/minute hands -->
+    <line x1="0" y1="0" x2="0"  y2="-104" stroke="#ffffff" stroke-width="24" stroke-linecap="round"/>
+    <line x1="0" y1="0" x2="72" y2="0"    stroke="#ffffff" stroke-width="24" stroke-linecap="round"/>
+
+    <!-- Center pin -->
+    <circle r="20" fill="#ffffff"/>
+  </g>
+</svg>
