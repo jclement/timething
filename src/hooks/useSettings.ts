@@ -18,16 +18,25 @@
  *     persisted. The Dashboard uses this to show the Save banner.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { loadSettings, saveSettings, type Settings } from "../lib/storage";
 import { decodeHashToSettings, encodeSettingsToHash, settingsEqual } from "../lib/urlState";
 
 export function useSettings() {
-  const [persisted, setPersisted] = useState<Settings>(() => loadSettings());
-  const [settings, setSettings] = useState<Settings>(() => {
+  // Load storage exactly once per hook instance. `loadSettings` falls
+  // back to `defaultSettings()` which mints a fresh UUID for the home
+  // zone — calling it twice would make `settings` and `persisted`
+  // structurally different on a clean install and spuriously trip
+  // `needsSave`.
+  const initial = useRef<{ stored: Settings; live: Settings }>(undefined as never);
+  if (!initial.current) {
+    const stored = loadSettings();
     const fromUrl = decodeHashToSettings(window.location.hash);
-    return fromUrl ?? loadSettings();
-  });
+    initial.current = { stored, live: fromUrl ?? stored };
+  }
+
+  const [persisted, setPersisted] = useState<Settings>(initial.current.stored);
+  const [settings, setSettings] = useState<Settings>(initial.current.live);
 
   // Mirror current state into the URL hash every time it changes.
   useEffect(() => {
