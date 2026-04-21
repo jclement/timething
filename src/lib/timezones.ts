@@ -12,6 +12,8 @@
  * covering common abbreviations (CST, GMT) and alternate spellings.
  */
 
+import { formatOffset, zoneOffsetMinutes } from "./time";
+
 export interface City {
   /** Display name — usually the city. */
   name: string;
@@ -1374,16 +1376,38 @@ export function formatZoneSublabel(tz: string, at: Date = new Date()): string {
   return `${tz} · ${zoneAbbreviation(tz, at)}`;
 }
 
-/** Return the current abbreviation (e.g. "MDT", "GMT+7") for a zone. */
+/**
+ * Return the zone's current identifier for display: always the UTC
+ * offset in `UTC±H(:MM)` form, optionally followed by a named
+ * abbreviation in parens when Intl knows one (e.g. `UTC-4 (EDT)`,
+ * `UTC+2 (CEST)`, `UTC+9 (JST)`).
+ *
+ * Offset-always keeps the output consistent across every zone; the
+ * named suffix adds the familiar label when it exists, without lying
+ * when it doesn't. Intl's generic `GMT±N` fallback is suppressed here
+ * — if Intl can't offer a real name, we don't fabricate one.
+ */
 export function zoneAbbreviation(tz: string, at: Date = new Date()): string {
+  const offset = formatOffset(zoneOffsetMinutes(at, tz));
+  const named = namedAbbreviation(tz, at);
+  return named ? `${offset} (${named})` : offset;
+}
+
+/**
+ * Ask Intl for the zone's short-name ("EDT", "CEST"). Returns null
+ * when Intl only produces the generic `GMT±N` fallback (e.g., for
+ * Asia/Kolkata in Chrome).
+ */
+function namedAbbreviation(tz: string, at: Date): string | null {
   try {
     const parts = new Intl.DateTimeFormat("en-US", {
       timeZone: tz,
       timeZoneName: "short",
     }).formatToParts(at);
-    return parts.find((p) => p.type === "timeZoneName")?.value ?? "";
+    const raw = parts.find((p) => p.type === "timeZoneName")?.value ?? "";
+    return /^[A-Z]{2,6}$/.test(raw) ? raw : null;
   } catch {
-    return "";
+    return null;
   }
 }
 

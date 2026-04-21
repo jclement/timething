@@ -50,8 +50,8 @@ export function DstFootnotes({ zones }: Props) {
               <span className="font-medium">{e.display}</span>
               {e.country && <span className="text-[#4b5563]"> · {e.country}</span>}
               <span className="font-mono text-[#4b5563]">
-                {" "}
-                ({e.currentAbbr || formatOffset(e.currentOffset)})
+                {" · "}
+                {e.currentAbbr || formatOffset(e.currentOffset)}
               </span>
             </dt>
             <dd className="font-mono whitespace-nowrap text-[#374151]">

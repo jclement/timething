@@ -504,7 +504,7 @@ function DstSection({ zones }: { zones: ZoneConfig[] }) {
           <View key={tz} style={styles.dstRow}>
             <Text style={styles.dstLabel}>
               {display}
-              {city?.country ? `, ${city.country}` : ""}  ({abbr})
+              {city?.country ? `, ${city.country}` : ""} · {abbr}
             </Text>
             <Text style={[styles.dstValue, styles.dstMono]}>
               {t

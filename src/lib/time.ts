@@ -264,15 +264,21 @@ export function earliestTransitionAcross(
 }
 
 function abbreviationAt(tz: string, at: Date): string {
+  // Mirror zoneAbbreviation in timezones.ts: UTC offset always, with
+  // a named short-name appended in parens when Intl knows one. Keeps
+  // the DST footnotes, ValidityBar, and zone labels in lock step.
+  const offset = formatOffset(zoneOffsetMinutes(at, tz));
   try {
     const parts = new Intl.DateTimeFormat("en-US", {
       timeZone: tz,
       timeZoneName: "short",
     }).formatToParts(at);
-    return parts.find((p) => p.type === "timeZoneName")?.value ?? "";
+    const raw = parts.find((p) => p.type === "timeZoneName")?.value ?? "";
+    if (/^[A-Z]{2,6}$/.test(raw)) return `${offset} (${raw})`;
   } catch {
-    return "";
+    // ignore
   }
+  return offset;
 }
 
 // ---------------------------------------------------------------------------
