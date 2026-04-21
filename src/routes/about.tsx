@@ -116,6 +116,21 @@ function AboutPage() {
               a week of collective productivity to bugs that boil down to "but we
               assumed March only has 31 days."
             </p>
+            <p>
+              <strong>It also happens on different dates in different places.</strong>{" "}
+              The US springs forward on the <em>second</em> Sunday of March; the EU
+              springs forward on the <em>last</em> Sunday of March. That leaves a
+              two-to-three-week interval each spring where New York is suddenly
+              only four hours behind London instead of five — and another one each
+              autumn when they re-sync. Australia and New Zealand transition in
+              the opposite months (October and April, because they're upside
+              down). Chile, Lebanon, Iran, Morocco — each on their own schedule.
+              If you're tracking a half-dozen regions, your grid can shift six or
+              eight times a year, and the cadence depends entirely on which zones
+              you included. Throw in a colleague in India or Saudi Arabia (no
+              DST) and the whole arrangement rearranges itself around them while
+              you weren't looking.
+            </p>
           </Section>
 
           <Section title="Why this exists">

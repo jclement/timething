@@ -519,7 +519,10 @@ function FirstRunHelp() {
         <li>
           <span className="font-medium">Export PDF</span> gives you a landscape
           printout to tape next to your monitor. Just remember DST will nudge the
-          whole thing twice a year — the PDF includes a "valid through" date.
+          whole thing multiple times a year — the exact number depends on the
+          zones you track, because the US, Europe, and the southern hemisphere
+          don't change on the same day. The PDF (and the app) show a "valid
+          through" date that tracks the next transition across all your zones.
         </li>
       </ul>
     </div>
