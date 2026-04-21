@@ -1,8 +1,11 @@
 name: Deploy
 
 on:
+  # Deploy on every pushed tag that looks like a version (`v1.2.3`,
+  # `v1.2.3-rc1`, etc). Manual `workflow_dispatch` kept for ad-hoc
+  # redeploys without a new tag.
   push:
-    branches: [main]
+    tags: ["v*"]
   workflow_dispatch:
 
 concurrency:
