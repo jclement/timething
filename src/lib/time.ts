@@ -263,6 +263,55 @@ export function earliestTransitionAcross(
   return winner;
 }
 
+/**
+ * Mirror of nextDstTransition but walking backwards — the most recent
+ * transition STRICTLY BEFORE `from`. Used by ValidityBar to show
+ * "valid from" when the user is scrubbing a date in the past or future.
+ */
+export function previousDstTransition(
+  tz: string,
+  from: Date = new Date(),
+  lookbackDays = 400,
+): DstTransition | null {
+  const endOffset = zoneOffsetMinutes(from, tz);
+  const stepMs = 86_400_000;
+
+  for (let i = 1; i <= lookbackDays; i++) {
+    const at = new Date(from.getTime() - i * stepMs);
+    const atOffset = zoneOffsetMinutes(at, tz);
+    if (atOffset !== endOffset) {
+      // Transition is between `at` and the previous day scanned.
+      return narrowTransition(tz, at, new Date(at.getTime() + stepMs));
+    }
+  }
+  return null;
+}
+
+/**
+ * Across a set of zones, return the *latest* transition strictly before
+ * `from`. That's the start of the window during which the grid is
+ * correct — any earlier DST event is stale. Returns null if none of
+ * the zones transitioned in the lookback window.
+ */
+export function latestPreviousTransitionAcross(
+  tzs: string[],
+  from: Date = new Date(),
+  lookbackDays = 400,
+): { tz: string; transition: DstTransition } | null {
+  const seen = new Set<string>();
+  let winner: { tz: string; transition: DstTransition } | null = null;
+  for (const tz of tzs) {
+    if (seen.has(tz)) continue;
+    seen.add(tz);
+    const t = previousDstTransition(tz, from, lookbackDays);
+    if (!t) continue;
+    if (!winner || t.after.getTime() > winner.transition.after.getTime()) {
+      winner = { tz, transition: t };
+    }
+  }
+  return winner;
+}
+
 function abbreviationAt(tz: string, at: Date): string {
   // Mirror zoneAbbreviation in timezones.ts: UTC offset always, with
   // a named short-name appended in parens when Intl knows one. Keeps

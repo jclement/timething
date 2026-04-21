@@ -301,6 +301,7 @@ export function Dashboard() {
 
         <ValidityBar
           primaryTz={primaryTz}
+          referenceDate={referenceDate}
           zones={settings.zones.map((z) => ({
             tz: z.tz,
             name: resolveZoneName(z),

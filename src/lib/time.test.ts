@@ -15,7 +15,9 @@ import {
   formatOffset,
   instantFromHomeHour,
   isWithinWorkingHours,
+  latestPreviousTransitionAcross,
   nextDstTransition,
+  previousDstTransition,
   zoneOffsetMinutes,
 } from "./time";
 
@@ -293,6 +295,39 @@ describe("computeOverlapHours edge cases", () => {
       [0, 24],
     );
     expect([...overlap].sort((a, b) => a - b)).toEqual([8, 9, 10, 11, 12, 13, 14, 15]);
+  });
+});
+
+describe("previousDstTransition / latestPreviousTransitionAcross", () => {
+  it("finds the LA fall-back before a winter reference date", () => {
+    const t = previousDstTransition("America/Los_Angeles", new Date("2026-01-15T00:00:00Z"));
+    expect(t).not.toBeNull();
+    // Fall back = 1st Sunday of Nov 2026? No — Nov 1 2026 at 2am PDT is 09:00 UTC.
+    // From Jan 15, the LATEST previous transition is Nov 1 2025 (not 2026).
+    expect(t!.after.toISOString().slice(0, 7)).toBe("2025-11");
+    expect(t!.deltaMinutes).toBe(-60); // fall back
+  });
+
+  it("finds the spring-forward before a summer reference date", () => {
+    const t = previousDstTransition("America/Los_Angeles", new Date("2026-07-15T00:00:00Z"));
+    expect(t).not.toBeNull();
+    expect(t!.after.toISOString().slice(0, 7)).toBe("2026-03");
+    expect(t!.deltaMinutes).toBe(60); // spring forward
+  });
+
+  it("returns null for non-DST zones", () => {
+    expect(previousDstTransition("America/Phoenix")).toBeNull();
+    expect(previousDstTransition("Asia/Riyadh")).toBeNull();
+  });
+
+  it("latest-previous picks the most recent across zones", () => {
+    // From Jan 15 2026, LA's last was Nov 1 2025 and Berlin's was Oct 26 2025.
+    // LA is later → LA wins.
+    const result = latestPreviousTransitionAcross(
+      ["America/Los_Angeles", "Europe/Berlin"],
+      new Date("2026-01-15T00:00:00Z"),
+    );
+    expect(result?.tz).toBe("America/Los_Angeles");
   });
 });
 

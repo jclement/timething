@@ -19,6 +19,8 @@ import {
   formatHour,
   formatLongDate,
   formatOffset,
+  instantFromHomeHour,
+  latestPreviousTransitionAcross,
   nextDstTransition,
   zoneOffsetMinutes,
 } from "../lib/time";
@@ -322,7 +324,11 @@ export function TimethingPdf({ settings, referenceDate, range, origin }: Props) 
           ))}
         </View>
 
-        <PdfValidityBar primaryTz={primaryTz} zones={zones} />
+        <PdfValidityBar
+          primaryTz={primaryTz}
+          referenceDate={referenceDate}
+          zones={zones}
+        />
 
         <DstSection zones={zones} />
 
@@ -364,7 +370,8 @@ function ZoneRow({
   const city = firstCityForTz(zone.tz);
   const display = zone.label ?? city?.name ?? humanizeIana(zone.tz);
   const country = city?.country;
-  const abbr = zoneAbbreviation(zone.tz);
+  const refInstant = instantFromHomeHour(primaryTz, referenceDate, 12);
+  const abbr = zoneAbbreviation(zone.tz, refInstant);
   const workingHours = zone.workingHours;
 
   const cells = hours.map((h) => {
@@ -440,42 +447,73 @@ function ZoneRow({
 
 function PdfValidityBar({
   primaryTz,
+  referenceDate,
   zones,
 }: {
   primaryTz: string;
+  referenceDate: string;
   zones: ZoneConfig[];
 }) {
   // Single-zone views don't need a "valid through" warning — there's
   // nothing to line up, DST or not.
   if (zones.length < 2) return null;
-  const earliest = earliestTransitionAcross(zones.map((z) => z.tz));
-  if (!earliest) return null;
-  const { tz, transition } = earliest;
-  const zoneName = resolveZoneName(zones.find((z) => z.tz === tz) ?? { tz });
-  const direction = transition.deltaMinutes > 0 ? "springs forward" : "falls back";
-  const abbr = transition.abbreviationAfter;
 
-  const oneDay = 24 * 60 * 60 * 1000;
-  const lastValidInstant = new Date(transition.after.getTime() - oneDay);
-  const primaryOffset = zoneOffsetMinutes(lastValidInstant, primaryTz);
-  const localLastValid = new Date(lastValidInstant.getTime() + primaryOffset * 60_000);
-  const validThroughStr = localLastValid.toLocaleDateString(undefined, {
+  const refInstant = instantFromHomeHour(primaryTz, referenceDate, 12);
+  const tzs = zones.map((z) => z.tz);
+  const next = earliestTransitionAcross(tzs, refInstant);
+  const prev = latestPreviousTransitionAcross(tzs, refInstant);
+  if (!next && !prev) return null;
+
+  const fmt = (d: Date) => formatCalendarDateInZone(d, primaryTz);
+  const fromStr = prev ? fmt(prev.transition.after) : null;
+  const throughStr = next
+    ? fmt(new Date(next.transition.after.getTime() - 24 * 60 * 60 * 1000))
+    : null;
+
+  const headline =
+    fromStr && throughStr
+      ? `Valid ${fromStr} – ${throughStr}.`
+      : throughStr
+        ? `Valid through ${throughStr}.`
+        : fromStr
+          ? `Valid from ${fromStr}.`
+          : "";
+
+  const next_tz = next ? resolveZoneName(zones.find((z) => z.tz === next.tz) ?? { tz: next.tz }) : null;
+  const direction = next
+    ? next.transition.deltaMinutes > 0
+      ? "springs forward"
+      : "falls back"
+    : null;
+  const abbr = next?.transition.abbreviationAfter;
+
+  return (
+    <View style={styles.validityBar} wrap={false}>
+      <Text>
+        <Text style={styles.validityBold}>{headline}</Text>{" "}
+        {next ? (
+          <>
+            Next: {next_tz} {direction}
+            {abbr ? ` to ${abbr}` : ""} on {fmt(next.transition.after)}.
+          </>
+        ) : (
+          <>No further DST changes across these zones.</>
+        )}
+      </Text>
+    </View>
+  );
+}
+
+function formatCalendarDateInZone(instant: Date, tz: string): string {
+  const offset = zoneOffsetMinutes(instant, tz);
+  const local = new Date(instant.getTime() + offset * 60_000);
+  return local.toLocaleDateString(undefined, {
     weekday: "short",
     month: "short",
     day: "numeric",
     year: "numeric",
     timeZone: "UTC",
   });
-
-  return (
-    <View style={styles.validityBar} wrap={false}>
-      <Text>
-        <Text style={styles.validityBold}>Valid through {validThroughStr}.</Text>{" "}
-        {zoneName} {direction}
-        {abbr ? ` to ${abbr}` : ""} after that — reprint once that date passes.
-      </Text>
-    </View>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -498,7 +536,7 @@ function DstSection({ zones }: { zones: ZoneConfig[] }) {
         const city = firstCityForTz(tz);
         const display = city?.name ?? humanizeIana(tz);
         const now = new Date();
-        const abbr = zoneAbbreviation(tz, now) || formatOffset(zoneOffsetMinutes(now, tz));
+        const abbr = zoneAbbreviation(tz, now);
         const t = nextDstTransition(tz);
         return (
           <View key={tz} style={styles.dstRow}>

@@ -28,7 +28,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 import { useMemo } from "react";
 import type { WorkingHours, ZoneConfig } from "../lib/storage";
-import { computeDayOffset, formatHour } from "../lib/time";
+import { computeDayOffset, formatHour, instantFromHomeHour } from "../lib/time";
 import { firstCityForTz, humanizeIana, zoneAbbreviation } from "../lib/timezones";
 
 const ZONE_COLORS = [
@@ -98,6 +98,13 @@ export function MobileGrid({
 
   const zoneIds = zones.map((z) => z.id);
 
+  // Reference-date-aware instant for zone abbreviations — ensures
+  // column headers show the right offset for the date being viewed.
+  const refInstant = useMemo(
+    () => instantFromHomeHour(primaryTz, referenceDate, 12),
+    [primaryTz, referenceDate],
+  );
+
   const grid = useMemo(
     () =>
       zones.map((zone) =>
@@ -120,6 +127,7 @@ export function MobileGrid({
                 key={zone.id}
                 zone={zone}
                 color={ZONE_COLORS[i % ZONE_COLORS.length]}
+                refInstant={refInstant}
                 onEdit={() => onEdit(zone.id)}
               />
             ))}
@@ -194,15 +202,18 @@ export function MobileGrid({
 interface ColumnHeaderProps {
   zone: ZoneConfig;
   color: string;
+  /** A moment on the reference date in the primary zone — used to
+   * resolve zone abbreviations for the date being viewed, not today. */
+  refInstant: Date;
   onEdit: () => void;
   /** Optional grip button rendered before the swatch (set by the sortable wrapper). */
   dragHandle?: React.ReactNode;
 }
 
-function ColumnHeader({ zone, color, onEdit, dragHandle }: ColumnHeaderProps) {
+function ColumnHeader({ zone, color, refInstant, onEdit, dragHandle }: ColumnHeaderProps) {
   const city = firstCityForTz(zone.tz);
   const display = zone.label ?? city?.name ?? humanizeIana(zone.tz);
-  const abbr = zoneAbbreviation(zone.tz);
+  const abbr = zoneAbbreviation(zone.tz, refInstant);
 
   return (
     <div

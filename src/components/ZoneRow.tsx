@@ -15,7 +15,7 @@
 
 import { Pencil, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { computeDayOffset, formatHour } from "../lib/time";
+import { computeDayOffset, formatHour, instantFromHomeHour } from "../lib/time";
 import type { WorkingHours, ZoneConfig } from "../lib/storage";
 import { firstCityForTz, humanizeIana, zoneAbbreviation } from "../lib/timezones";
 
@@ -67,7 +67,14 @@ export function ZoneRow({
   const city = firstCityForTz(zone.tz);
   const display = zone.label ?? city?.name ?? humanizeIana(zone.tz);
   const country = city?.country;
-  const abbr = zoneAbbreviation(zone.tz);
+  // Use a moment on the reference date (not today) so the offset
+  // label reflects the date the user is viewing — DC shows UTC-5 (EST)
+  // in January, UTC-4 (EDT) in July.
+  const refInstant = useMemo(
+    () => instantFromHomeHour(primaryTz, referenceDate, 12),
+    [primaryTz, referenceDate],
+  );
+  const abbr = zoneAbbreviation(zone.tz, refInstant);
 
   return (
     <div
