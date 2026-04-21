@@ -22,8 +22,8 @@ description = "Preview production build locally"
 run = "npm run preview"
 
 [tasks.test]
-description = "Run all tests"
-depends = ["test:unit"]
+description = "Run all tests (unit + e2e)"
+depends = ["test:unit", "test:e2e"]
 
 [tasks."test:unit"]
 description = "Run unit tests"
