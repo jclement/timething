@@ -31,7 +31,7 @@
     "@cloudflare/workers-types": "^4.20250101.0",
     "@eslint/js": "^9.39.4",
     "@playwright/test": "^1.49.0",
-    "@tailwindcss/vite": "^4.0.0",
+    "@tailwindcss/vite": "^4.2.4",
     "@tanstack/router-cli": "^1.166.33",
     "@tanstack/router-plugin": "^1.87.0",
     "@testing-library/jest-dom": "^6.6.0",
